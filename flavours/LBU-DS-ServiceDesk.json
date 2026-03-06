@@ -6,7 +6,9 @@
       "section": "Web Tools",
       "icon": "🌐",
       "items": [
-        { "label": "IT Portal",       "type": "url", "value": "https://itportal.leedsbeckett.ac.uk" },
+        { "label": "ivanti",       "type": "url", "value": "https://leedsbeckett.saasiteu.com" },
+        { "label": "Storm DTA",       "type": "url", "value": "https://www.timeforstorm.com/dta" },
+        { "label": "LapSafe ONARKEN",       "type": "url", "value": "https://leedsbeckett.onarken.com/dashboard" },
         { "label": "GitLab",          "type": "url", "value": "https://gitlab.leedsbeckett.ac.uk" }
       ]
     },
@@ -14,13 +16,6 @@
       "section": "GitLab Scripts",
       "icon": "☁️",
       "items": [
-        {
-          "label": "Panopto Delta Informant",
-          "type": "script",
-          "projectId": 522,
-          "filePath": "Powershell/PanoptoDeltaInformant/PanoptoDeltaInformant.ps1",
-          "branch": "main"
-        },
         {
           "label": "SCCM Collection Tool",
           "type": "script",
