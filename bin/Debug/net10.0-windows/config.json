@@ -10,5 +10,12 @@
   "flavour_repo_path": "flavours",
   "flavour_poll_seconds": 300,
   "browser_name": "chrome",
-  "browser_path": ""
+  "browser_path": "",
+  "runas_profiles": [
+    {
+      "name": "LBU Local Admin",
+      "username": "LeedsBeckett\\KSALEH",
+      "password": ""
+    }
+  ]
 }

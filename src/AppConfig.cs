@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using System.Collections.Generic;
 
 public class AppConfig
 {
@@ -33,10 +34,30 @@ public class AppConfig
     public int FlavourPollSeconds { get; set; } = 300;
 
     [JsonPropertyName("browser_name")]
-    public string BrowserName { get; set; } = "default"; // default | chrome | edge | firefox | custom
+    public string BrowserName { get; set; } = "default"; // default | chrome | edge | firefox | brave | custom
 
     [JsonPropertyName("browser_path")]
     public string BrowserPath { get; set; } = "";
+
+    [JsonPropertyName("runas_profiles")]
+    public List<RunAsProfile> RunAsProfiles { get; set; } = new()
+    {
+        new() { Name = "Default Admin", Username = "", Password = "" }
+    };
+}
+
+public class RunAsProfile
+{
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = "";
+
+    [JsonPropertyName("username")]
+    public string Username { get; set; } = "";
+
+    [JsonPropertyName("password")]
+    public string Password { get; set; } = "";
+
+    public override string ToString() => Name;
 }
 
 public class FlavourConfig
@@ -69,10 +90,20 @@ public class FlavourItem
     public string Label { get; set; } = "";
 
     [JsonPropertyName("type")]
-    public string Type { get; set; } = "";  // url | incognito | script | powershell | exe
+    public string Type { get; set; } = "";
+    // url | incognito | app | runas | script | powershell | exe
 
     [JsonPropertyName("value")]
     public string Value { get; set; } = "";
+
+    [JsonPropertyName("arguments")]
+    public string Arguments { get; set; } = "";
+
+    [JsonPropertyName("runas_profile")]
+    public string RunAsProfile { get; set; } = "";  // Matches RunAsProfile.Name in AppConfig
+
+    [JsonPropertyName("admin")]
+    public bool Admin { get; set; } = false;
 
     [JsonPropertyName("projectId")]
     public int ProjectId { get; set; } = 0;

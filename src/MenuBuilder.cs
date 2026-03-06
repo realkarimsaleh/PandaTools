@@ -59,16 +59,48 @@ public static class MenuBuilder
     private static EventHandler ResolveHandler(FlavourItem item) =>
         item.Type.ToLowerInvariant() switch
         {
+            // ── Open URL in default browser ───────────────────────────
             "url" => (_, _) =>
                 Process.Start(new ProcessStartInfo(item.Value) { UseShellExecute = true }),
 
-            // 🕶️ Incognito — uses configured browser OR PowerShell fallback
+            // ── Open URL in private/incognito mode ────────────────────
             "incognito" => (_, _) =>
             {
                 var cfg = ConfigLoader.AppConfig;
                 OpenIncognito(item.Value, cfg.BrowserName, cfg.BrowserPath);
             },
 
+            // ── Launch application (no elevation) ─────────────────────
+            "app" => (_, _) =>
+            {
+                try
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName        = item.Value,
+                        Arguments       = item.Arguments,
+                        UseShellExecute = true
+                    });
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Could not launch application:\n{ex.Message}",
+                        "Launch Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            },
+
+            // ── Launch application as Admin or Different User ─────────
+            "runas" => (_, _) =>
+            {
+                var cfg     = ConfigLoader.AppConfig;
+                var profile = cfg.RunAsProfiles
+                    .FirstOrDefault(p => p.Name.Equals(
+                        item.RunAsProfile, StringComparison.OrdinalIgnoreCase));
+
+                LaunchAsUser(item.Value, item.Arguments, profile);
+            },
+
+            // ── Run inline PowerShell command ─────────────────────────
             "powershell" => (_, _) =>
                 Process.Start(new ProcessStartInfo
                 {
@@ -78,14 +110,16 @@ public static class MenuBuilder
                     CreateNoWindow  = true
                 }),
 
+            // ── Launch .exe directly (legacy) ─────────────────────────
             "exe" => (_, _) =>
                 Process.Start(new ProcessStartInfo(item.Value) { UseShellExecute = true }),
 
+            // ── Fetch and run script from GitLab ──────────────────────
             "script" => async (_, _) =>
             {
-                try 
-                { 
-                    await GitLabScriptRunner.RunAsync(item.ProjectId, item.FilePath, item.Branch); 
+                try
+                {
+                    await GitLabScriptRunner.RunAsync(item.ProjectId, item.FilePath, item.Branch);
                 }
                 catch (Exception ex)
                 {
@@ -97,6 +131,54 @@ public static class MenuBuilder
             _ => (_, _) => { }
         };
 
+    // ── RunAs / UAC launcher ──────────────────────────────────────────
+    private static void LaunchAsUser(string exe, string arguments, RunAsProfile? profile)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName        = exe,
+                Arguments       = arguments,
+                UseShellExecute = true,
+                Verb            = "runas"   // Always triggers UAC
+            };
+
+            // If a profile with a username is set, use those credentials
+            if (profile != null && !string.IsNullOrWhiteSpace(profile.Username))
+            {
+                psi.UseShellExecute = false;
+                psi.UserName        = profile.Username.Contains("\\")
+                    ? profile.Username.Split('\\')[1]
+                    : profile.Username;
+                psi.Domain          = profile.Username.Contains("\\")
+                    ? profile.Username.Split('\\')[0]
+                    : Environment.MachineName;
+
+                if (!string.IsNullOrWhiteSpace(profile.Password))
+                {
+                    var secure = new System.Security.SecureString();
+                    foreach (var c in profile.Password)
+                        secure.AppendChar(c);
+                    psi.Password = secure;
+                }
+                // Empty password = Windows credential prompt
+            }
+
+            Process.Start(psi);
+        }
+        catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
+        {
+            // User clicked Cancel on UAC — silent
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"RunAs failed:\n{ex.Message}",
+                "PandaTools Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    // ── Incognito launcher ────────────────────────────────────────────
     private static void OpenIncognito(string url, string browserName, string customPath)
     {
         try
@@ -108,27 +190,27 @@ public static class MenuBuilder
             {
                 case "chrome":
                     exePath = FindChrome();
-                    args = $"--incognito \"{url}\"";
+                    args    = $"--incognito \"{url}\"";
                     break;
                 case "edge":
                     exePath = FindEdge();
-                    args = $"--inprivate \"{url}\"";
+                    args    = $"--inprivate \"{url}\"";
                     break;
                 case "firefox":
                     exePath = FindFirefox();
-                    args = $"-private-window \"{url}\"";
+                    args    = $"-private-window \"{url}\"";
                     break;
                 case "brave":
                     exePath = FindBrave();
-                    args = $"--incognito \"{url}\"";
+                    args    = $"--incognito \"{url}\"";
                     break;
                 case "custom":
                     exePath = customPath;
-                    args = $"--incognito \"{url}\"";
+                    args    = $"--incognito \"{url}\"";
                     break;
                 default:
                     exePath = "";
-                    args = "";
+                    args    = "";
                     break;
             }
 
@@ -153,7 +235,6 @@ public static class MenuBuilder
         }
         catch
         {
-            // Final fallback
             Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
         }
     }
@@ -168,6 +249,7 @@ public static class MenuBuilder
     private static string FindEdge() =>
         new[]
         {
+            @"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
             @"C:\Program Files\Microsoft\Edge\Application\msedge.exe"
         }.FirstOrDefault(File.Exists) ?? "";
 

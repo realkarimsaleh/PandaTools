@@ -60,6 +60,29 @@
       ]
     },
     {
+    "section": "Applications",
+    "icon": "🖥️",
+    "items": [
+        {
+        "label": "Notepad++",
+        "type": "app",
+        "value": "C:\\Program Files\\Notepad++\\notepad++.exe"
+        },
+        {
+        "label": "Task Manager (Admin)",
+        "type": "runas",
+        "value": "taskmgr.exe"
+        },
+        {
+        "label": "SCCM Console (Service Account)",
+        "type": "runas",
+        "value": "C:\\Program Files (x86)\\Microsoft Configuration Manager\\AdminConsole\\bin\\Microsoft.ConfigurationManagement.exe",
+        "runas_profile": "Service Account"
+        }
+    ]
+    },
+
+    {
       "section": "Local Scripts",
       "icon": "⚡",
       "items": [
