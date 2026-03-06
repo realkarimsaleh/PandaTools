@@ -5,72 +5,106 @@ public static class MenuBuilder
 {
     public static ContextMenuStrip Build(Action onExit)
     {
-        var menu = new ContextMenuStrip();
+        var menu    = new ContextMenuStrip();
+        var flavour = ConfigLoader.FlavourConfig;
+        var cfg     = ConfigLoader.AppConfig;
 
-        //  Build submenus dynamically from MenuConfig - edit MenuConfig.cs to add shortcuts
-        foreach (var section in MenuConfig.Sections)
+        // ── Dynamic menu from flavour JSON ────────────────────────────
+        foreach (var section in flavour.Menu)
         {
-            var submenu = new ToolStripMenuItem(section.Label);
+            if (string.IsNullOrWhiteSpace(section.Section)) continue;
+
+            var label   = string.IsNullOrWhiteSpace(section.Icon)
+                ? section.Section
+                : $"{section.Icon} {section.Section}";
+            var submenu = new ToolStripMenuItem(label);
 
             foreach (var item in section.Items)
             {
-                submenu.DropDownItems.Add(item.Label, null, ResolveAction(item));
+                var m = new ToolStripMenuItem(item.Label);
+                m.Click += ResolveHandler(item);
+                submenu.DropDownItems.Add(m);
             }
-
             menu.Items.Add(submenu);
         }
 
-        //  Bottom fixed items - always present regardless of config
+        // ── Fixed footer ──────────────────────────────────────────────
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("🔄 Check for Updates", null, async (s, e) =>
-            await Updater.CheckAsync(silent: false));
+
+        // Switch Flavour submenu
+        var flavourMenu = new ToolStripMenuItem("🎨 Switch Flavour");
+        foreach (var name in ConfigLoader.GetAvailableFlavours())
+        {
+            var n  = name;
+            var fi = new ToolStripMenuItem(n)
+            {
+                Checked = n.Equals(cfg.Flavour, StringComparison.OrdinalIgnoreCase)
+            };
+            fi.Click += (_, _) => ConfigLoader.SetFlavour(n);
+            flavourMenu.DropDownItems.Add(fi);
+        }
+        menu.Items.Add(flavourMenu);
+
+        menu.Items.Add("🔄 Reload Configs", null,
+            (_, _) => ConfigLoader.Reload());
+
+        // ⚙️ SETTINGS BUTTON — launches the full settings window
+        menu.Items.Add("⚙️ Settings", null, (_, _) =>
+        {
+            using var settings = new SettingsWindow();
+            var ctx = Application.OpenForms.OfType<TrayContext>().FirstOrDefault();
+            if (ctx != null)
+            {
+                settings.ShowDialog();
+                ctx.RebuildMenu();  // Refresh after settings changes
+            }
+        });
+
+        menu.Items.Add("⬆️ Check for Updates", null,
+            async (_, _) => await Updater.CheckAsync(silent: false));
+
+        var diagItem = new ToolStripMenuItem("🔍 Diagnostics")
+            { Checked = cfg.Diagnostics };
+        diagItem.Click += (_, _) => ConfigLoader.ToggleDiagnostics();
+        menu.Items.Add(diagItem);
+
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("❌ Exit", null, (s, e) => onExit());
+        menu.Items.Add("❌ Exit", null, (_, _) => onExit());
 
         return menu;
     }
 
-    //  ResolveAction
-    //  Maps each MenuItemType to its corresponding action at click time
-    private static EventHandler ResolveAction(MenuItem item) => item.Type switch
-    {
-        //  Url — opens in default browser
-        MenuItemType.Url => (s, e) =>
-            Process.Start(new ProcessStartInfo(item.Action) { UseShellExecute = true }),
-
-        //  PowerShell — runs command silently with no window
-        MenuItemType.PowerShell => (s, e) =>
-            Process.Start(new ProcessStartInfo
-            {
-                FileName        = "powershell.exe",
-                Arguments       = $"-NoProfile -Command \"{item.Action}\"",
-                UseShellExecute = false,
-                CreateNoWindow  = true
-            }),
-
-        //  Exe - launches app or opens folder via shell
-        MenuItemType.Exe => (s, e) =>
-            Process.Start(new ProcessStartInfo(item.Action) { UseShellExecute = true }),
-
-        //  GitLabScript - fetches latest .ps1 from GitLab and runs it
-        //MenuItemType.GitLabScript => (s, e) =>
-        //    _ = GitLabScriptRunner.RunAsync(item.ProjectId, item.ScriptPath, item.Branch),
-
-        MenuItemType.GitLabScript => async (s, e) =>
+    private static EventHandler ResolveHandler(FlavourItem item) =>
+        item.Type.ToLowerInvariant() switch
         {
-            try
-            {
-                await GitLabScriptRunner.RunAsync(item.ProjectId, item.ScriptPath, item.Branch);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Script runner error:\n{ex.Message}\n\n{ex.StackTrace}",
-                    "PandaTools Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        },
+            "url" => (_, _) =>
+                Process.Start(new ProcessStartInfo(item.Value) { UseShellExecute = true }),
 
+            "powershell" => (_, _) =>
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName        = "powershell.exe",
+                    Arguments       = $"-NoProfile -Command \"{item.Value}\"",
+                    UseShellExecute = false,
+                    CreateNoWindow  = true
+                }),
 
-        //  Fallback - do nothing
-        _ => (s, e) => { }
-    };
+            "exe" => (_, _) =>
+                Process.Start(new ProcessStartInfo(item.Value) { UseShellExecute = true }),
+
+            "script" => async (_, _) =>
+            {
+                try
+                {
+                    await GitLabScriptRunner.RunAsync(item.ProjectId, item.FilePath, item.Branch);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Script runner error:\n{ex.Message}",
+                        "PandaTools Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            },
+
+            _ => (_, _) => { }
+        };
 }

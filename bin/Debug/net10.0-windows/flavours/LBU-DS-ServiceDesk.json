@@ -1,0 +1,34 @@
+{
+  "version": "1.0",
+  "hidden": false,
+  "menu": [
+    {
+      "section": "Web Tools",
+      "icon": "\uD83C\uDF10",
+      "items": [
+        {
+          "label": "Example Portal",
+          "type": "url",
+          "value": "https://example.com",
+          "projectId": 0,
+          "filePath": "",
+          "branch": "main"
+        }
+      ]
+    },
+    {
+      "section": "GitLab Scripts",
+      "icon": "\u2601\uFE0F",
+      "items": [
+        {
+          "label": "Panopto Delta Informant",
+          "type": "script",
+          "value": "",
+          "projectId": 522,
+          "filePath": "Powershell/PanoptoDeltaInformant/PanoptoDeltaInformant.ps1",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "version": "1.0",
+  "hidden": false,
+  "menu": [
+    {
+      "section": "Support Tools",
+      "icon": "\uD83D\uDD27",
+      "items": [
+        {
+          "label": "Example Tool",
+          "type": "url",
+          "value": "https://example.com",
+          "projectId": 0,
+          "filePath": "",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

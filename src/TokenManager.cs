@@ -1,78 +1,64 @@
 using System.Diagnostics;
 using System.Text;
-using System.Windows.Forms;
 
 public static class TokenManager
 {
-    private const string KeyPath   = @"C:\Windows\Build\Sync-Gitlab\K_Sync-Gitlab.txt";
-    private const string TokenPath = @"C:\Windows\Build\Sync-Gitlab\C_Sync-Gitlab.txt";
+    private static string? _cachedToken;
+    private const string   PS51 = @"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe";
 
-    //  Debug override — set to raw token to bypass decryption during dev
-    //  Leave as "" in production — never commit a real token here
-    private static readonly string PlainTextToken = "";
-
-    //  Cached token — decrypted once per session, held in memory only
-    private static string? _cachedToken = null;
-
-    //  Hardcoded to Windows PowerShell 5.1 — never resolves to pwsh/PS7
-    private const string PS51 = @"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe";
-
-    //  Called on app startup to clear any stale cached token
     public static void Reset() => _cachedToken = null;
 
     public static string? GetToken()
     {
         if (_cachedToken != null) return _cachedToken;
 
-        if (PlainTextToken != "")
-        {
-            _cachedToken = PlainTextToken;
-            return _cachedToken;
-        }
+        var cfg = ConfigLoader.AppConfig;
 
-        if (!File.Exists(KeyPath) || !File.Exists(TokenPath) || !File.Exists(PS51))
+        // 1) Plaintext token from config.json
+        if (!string.IsNullOrWhiteSpace(cfg.Token))
+            return _cachedToken = cfg.Token;
+
+        // 2) Encrypted via key + token files from config.json
+        if (string.IsNullOrWhiteSpace(cfg.KeyFile)   || !File.Exists(cfg.KeyFile)   ||
+            string.IsNullOrWhiteSpace(cfg.TokenFile)  || !File.Exists(cfg.TokenFile) ||
+            !File.Exists(PS51))
             return null;
 
         try
         {
             var script = $@"
 $ErrorActionPreference = 'Stop'
-$AesKey = Get-Content -Path '{KeyPath}' -Encoding Default |
+$AesKey = Get-Content -Path '{cfg.KeyFile}' -Encoding Default |
     Where-Object   {{ $_ -match '\S' }} |
     ForEach-Object {{ [byte]$_.Trim() }}
-$Encrypted   = Get-Content -Path '{TokenPath}' -Raw
+$Encrypted   = Get-Content -Path '{cfg.TokenFile}' -Raw
 $SecureToken = ConvertTo-SecureString $Encrypted.Trim() -Key $AesKey
 [System.Runtime.InteropServices.Marshal]::PtrToStringAuto(
     [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecureToken)
 )";
-
-            var tempScript = Path.Combine(Path.GetTempPath(), "PandaTools_Decrypt.ps1");
-            File.WriteAllText(tempScript, script, Encoding.UTF8);
+            var tmp = Path.Combine(Path.GetTempPath(), "PandaTools_Decrypt.ps1");
+            File.WriteAllText(tmp, script, Encoding.UTF8);
 
             var psi = new ProcessStartInfo
             {
                 FileName               = PS51,
-                Arguments              = $"-NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"{tempScript}\"",
+                Arguments              = $"-NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"{tmp}\"",
                 UseShellExecute        = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError  = true,
                 CreateNoWindow         = true
             };
-
-            //  Prevent PS7 module paths bleeding in — causes type data conflicts
             psi.EnvironmentVariables["PSModulePath"] =
                 @"C:\Windows\system32\WindowsPowerShell\v1.0\Modules";
 
             using var proc = Process.Start(psi)!;
-            var stdOut     = proc.StandardOutput.ReadToEnd();
+            var output     = proc.StandardOutput.ReadToEnd();
             proc.WaitForExit();
+            File.Delete(tmp);
 
-            File.Delete(tempScript);
-
-            var token = stdOut
+            var token = output
                 .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
-                .LastOrDefault()
-                ?.Trim() ?? "";
+                .LastOrDefault()?.Trim() ?? "";
 
             if (!string.IsNullOrWhiteSpace(token))
                 _cachedToken = token;

@@ -6,4 +6,9 @@
     <UseWindowsForms>true</UseWindowsForms>
     <AssemblyVersion>1.0.0</AssemblyVersion>
   </PropertyGroup>
+  <ItemGroup>
+    <None Update="assets\PandaTools.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 </Project>

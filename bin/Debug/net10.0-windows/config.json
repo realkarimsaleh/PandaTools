@@ -1,0 +1,11 @@
+{
+  "url_server": "https://gitlab.leedsbeckett.ac.uk",
+  "flavour": "LBU-DS-ServiceDesk",
+  "keyFile": "C:\\Windows\\Build\\Sync-Gitlab\\K_Sync-Gitlab.txt",
+  "tokenFile": "C:\\Windows\\Build\\Sync-Gitlab\\C_Sync-Gitlab.txt",
+  "token": "",
+  "diagnostics": false,
+  "flavour_project_id": 0,
+  "flavour_repo_path": "flavours",
+  "flavour_poll_seconds": 300
+}
