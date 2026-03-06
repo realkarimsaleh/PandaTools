@@ -31,6 +31,12 @@ public class AppConfig
 
     [JsonPropertyName("flavour_poll_seconds")]
     public int FlavourPollSeconds { get; set; } = 300;
+
+    [JsonPropertyName("browser_name")]
+    public string BrowserName { get; set; } = "default"; // default | chrome | edge | firefox | custom
+
+    [JsonPropertyName("browser_path")]
+    public string BrowserPath { get; set; } = "";
 }
 
 public class FlavourConfig
@@ -63,7 +69,7 @@ public class FlavourItem
     public string Label { get; set; } = "";
 
     [JsonPropertyName("type")]
-    public string Type { get; set; } = "";
+    public string Type { get; set; } = "";  // url | incognito | script | powershell | exe
 
     [JsonPropertyName("value")]
     public string Value { get; set; } = "";

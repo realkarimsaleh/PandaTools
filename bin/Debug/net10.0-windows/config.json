@@ -8,5 +8,7 @@
   "manual_mode": false,
   "flavour_project_id": 0,
   "flavour_repo_path": "flavours",
-  "flavour_poll_seconds": 300
+  "flavour_poll_seconds": 300,
+  "browser_name": "chrome",
+  "browser_path": ""
 }

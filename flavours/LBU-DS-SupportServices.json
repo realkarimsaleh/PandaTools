@@ -1,0 +1,90 @@
+{
+  "version": "1.0",
+  "hidden": false,
+  "menu":
+  [
+    {
+      "section": "Web Tools",
+      "icon": "🌐",
+      "items":
+      [
+        { 
+            "label": "ivanti",
+            "type": "url",
+            "value": "https://leedsbeckett.saasiteu.com"
+        },
+        {
+            "label": "Storm DTA",
+            "type": "url",
+            "value": "https://www.timeforstorm.com/dta" 
+        },
+        {
+            "label": "ADAudit",
+            "type": "url",
+            "value": "hhttps://cc-audit1.leedsbeckett.ac.uk:8444" 
+        },
+        {
+            "label": "Panopto",
+            "type": "url",
+            "value": "https://leedsbeckettreplay.cloud.panopto.eu/"
+        },
+        { 
+            "label": "LapSafe ONARKEN",
+            "type": "url", 
+            "value": "https://leedsbeckett.onarken.com/dashboard" 
+        },
+        { 
+            "label": "EAC (incognito)", 
+            "type": "incognito", 
+            "value": "https://lbmail.leedsbeckett.ac.uk/ecp/" 
+        },
+        { 
+            "label": "Entra (incognito)", 
+            "type": "incognito", 
+            "value": "https://entra.microsoft.com/" 
+        },
+        { 
+            "label": "JAMF (incognito)", 
+            "type": "incognito", 
+            "value": "https://cc-cox.leedsbeckett.ac.uk:8443"
+        }
+
+      ]
+    },
+    {
+      "section": "AV Tools",
+      "icon": "📺",
+      "items":
+      [
+        {
+            "label": "Crestron Fusion",
+            "type": "url",
+            "value": "https://aql-cfusion.leedsbeckett.ac.uk/Fusion/WebClient"
+        }
+
+      ]
+    },
+    {
+      "section": "GitLab Scripts",
+      "icon": "☁️",
+      "items":
+      [
+        {
+          "label": "SCCM Collection Tool",
+          "type": "script",
+          "projectId": 525,
+          "filePath": "SCCMCollectionMembership-Utility.ps1",
+          "branch": "main"
+        }
+      ]
+    },
+    {
+      "section": "Local Scripts",
+      "icon": "⚡",
+      "items": [
+        { "label": "Flush DNS",     "type": "powershell", "value": "ipconfig /flushdns" },
+        { "label": "Restart Wi-Fi", "type": "powershell", "value": "Restart-NetAdapter -Name 'Wi-Fi' -Confirm:$false" }
+      ]
+    }
+  ]
+}
