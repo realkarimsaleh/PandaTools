@@ -9,6 +9,10 @@ public static class MenuBuilder
         var flavour = ConfigLoader.FlavourConfig;
         var cfg     = ConfigLoader.AppConfig;
 
+        // ── Flavour name at top (non-clickable) ───────────────────────
+        menu.Items.Add(new ToolStripMenuItem(cfg.Flavour) { Enabled = false });
+        menu.Items.Add(new ToolStripSeparator());
+
         // ── Dynamic menu from flavour JSON ────────────────────────────
         foreach (var section in flavour.Menu)
         {
@@ -28,46 +32,21 @@ public static class MenuBuilder
             menu.Items.Add(submenu);
         }
 
-        // ── Fixed footer ──────────────────────────────────────────────
+        // ── Footer ────────────────────────────────────────────────────
         menu.Items.Add(new ToolStripSeparator());
-
-        // Switch Flavour submenu
-        var flavourMenu = new ToolStripMenuItem("🎨 Switch Flavour");
-        foreach (var name in ConfigLoader.GetAvailableFlavours())
-        {
-            var n  = name;
-            var fi = new ToolStripMenuItem(n)
-            {
-                Checked = n.Equals(cfg.Flavour, StringComparison.OrdinalIgnoreCase)
-            };
-            fi.Click += (_, _) => ConfigLoader.SetFlavour(n);
-            flavourMenu.DropDownItems.Add(fi);
-        }
-        menu.Items.Add(flavourMenu);
-
-        menu.Items.Add("🔄 Reload Configs", null,
-            (_, _) => ConfigLoader.Reload());
-
-        // ⚙️ SETTINGS BUTTON — launches the full settings window
         menu.Items.Add("⚙️ Settings", null, (_, _) =>
         {
-            using var settings = new SettingsWindow();
-            var ctx = Application.OpenForms.OfType<TrayContext>().FirstOrDefault();
-            if (ctx != null)
+            try
             {
-                settings.ShowDialog();
-                ctx.RebuildMenu();  // Refresh after settings changes
+                using var w = new SettingsWindow();
+                w.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Could not open settings:\n{ex.Message}",
+                    "PandaTools Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         });
-
-        menu.Items.Add("⬆️ Check for Updates", null,
-            async (_, _) => await Updater.CheckAsync(silent: false));
-
-        var diagItem = new ToolStripMenuItem("🔍 Diagnostics")
-            { Checked = cfg.Diagnostics };
-        diagItem.Click += (_, _) => ConfigLoader.ToggleDiagnostics();
-        menu.Items.Add(diagItem);
-
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("❌ Exit", null, (_, _) => onExit());
 
@@ -94,13 +73,10 @@ public static class MenuBuilder
 
             "script" => async (_, _) =>
             {
-                try
-                {
-                    await GitLabScriptRunner.RunAsync(item.ProjectId, item.FilePath, item.Branch);
-                }
+                try { await GitLabScriptRunner.RunAsync(item.ProjectId, item.FilePath, item.Branch); }
                 catch (Exception ex)
                 {
-                    MessageBox.Show($"Script runner error:\n{ex.Message}",
+                    MessageBox.Show($"Script error:\n{ex.Message}",
                         "PandaTools Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             },

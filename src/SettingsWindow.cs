@@ -1,133 +1,185 @@
 using System;
 using System.IO;
-using System.Windows.Forms;
-using System.Diagnostics;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 
-partial class SettingsWindow : Form
+public class SettingsWindow : Form
 {
-    private AppConfig _config;
-    private ComboBox _flavourCombo;
-    private TextBox _urlBox;
-    private TextBox _keyBox;
-    private TextBox _tokenBox;
-    private CheckBox _diagCheck;
-    private NumericUpDown _pollBox;
-    private Button _updateFlavourBtn;
-    private Button _updateAppBtn;
-    private Button _loadLocalBtn;
-    private Label _statusLabel;
+    // All nullable — assigned in BuildLayout(), called from constructor
+    private TextBox?       _urlBox;
+    private TextBox?       _keyBox;
+    private TextBox?       _tokenBox;
+    private TextBox?       _tokenFileBox;
+    private ComboBox?      _flavourCombo;
+    private NumericUpDown? _pollBox;
+    private CheckBox?      _diagCheck;
+    private CheckBox?      _manualCheck;
+    private Label?         _statusLabel;
 
     public SettingsWindow()
     {
-        _config = ConfigLoader.AppConfig;
-        InitializeComponent();
-        LoadSettings();
+        Text            = "PandaTools — Settings";
+        Size            = new(560, 520);
+        StartPosition   = FormStartPosition.CenterScreen;
+        FormBorderStyle = FormBorderStyle.FixedDialog;
+        MaximizeBox     = false;
+        TopMost         = true;
+
+        BuildLayout();
     }
 
-    private void InitializeComponent()
+    private void BuildLayout()
     {
-        Text           = "PandaTools Settings";
-        Size           = new(500, 400);
-        StartPosition  = FormStartPosition.CenterScreen;
-        FormBorderStyle = FormBorderStyle.FixedDialog;
-        MaximizeBox    = false;
+        var cfg = ConfigLoader.AppConfig;
 
-        var mainPanel = new TableLayoutPanel
+        // ── Connection group ──────────────────────────────────────────
+        var grpConn = new GroupBox
         {
-            Dock = DockStyle.Fill,
-            RowCount = 12,
-            ColumnCount = 2
+            Text   = "Connection",
+            Left   = 10, Top = 10,
+            Width  = 520, Height = 140
         };
 
-        // GitLab Server
-        mainPanel.Controls.Add(new Label { Text = "GitLab Server:", TextAlign = ContentAlignment.MiddleRight }, 0, 0);
-        _urlBox = new TextBox { Text = _config.UrlServer, Dock = DockStyle.Fill };
-        mainPanel.Controls.Add(_urlBox, 1, 0);
+        grpConn.Controls.Add(MakeLabel("GitLab Server URL:", 10, 22));
+        _urlBox = MakeTextBox(cfg.UrlServer, 130, 20, 370);
+        grpConn.Controls.Add(_urlBox);
 
-        // Flavour selector
-        mainPanel.Controls.Add(new Label { Text = "Flavour:", TextAlign = ContentAlignment.MiddleRight }, 0, 1);
-        _flavourCombo = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Dock = DockStyle.Fill };
-        mainPanel.Controls.Add(_flavourCombo, 1, 1);
+        grpConn.Controls.Add(MakeLabel("Key File:", 10, 52));
+        _keyBox = MakeTextBox(cfg.KeyFile, 130, 50, 370);
+        grpConn.Controls.Add(_keyBox);
 
-        // Key file
-        mainPanel.Controls.Add(new Label { Text = "Key File:", TextAlign = ContentAlignment.MiddleRight }, 0, 2);
-        _keyBox = new TextBox { Text = _config.KeyFile, Dock = DockStyle.Fill };
-        mainPanel.Controls.Add(_keyBox, 1, 2);
+        grpConn.Controls.Add(MakeLabel("Token File:", 10, 82));
+        _tokenFileBox = MakeTextBox(cfg.TokenFile, 130, 80, 370);
+        grpConn.Controls.Add(_tokenFileBox);
 
-        // Token file
-        mainPanel.Controls.Add(new Label { Text = "Token File:", TextAlign = ContentAlignment.MiddleRight }, 0, 3);
-        _tokenBox = new TextBox { Text = _config.TokenFile, Dock = DockStyle.Fill };
-        mainPanel.Controls.Add(_tokenBox, 1, 3);
+        grpConn.Controls.Add(MakeLabel("Plain Token:", 10, 112));
+        _tokenBox = MakeTextBox(cfg.Token, 130, 110, 370, password: true);
+        grpConn.Controls.Add(_tokenBox);
 
-        // Poll interval
-        mainPanel.Controls.Add(new Label { Text = "Poll Seconds:", TextAlign = ContentAlignment.MiddleRight }, 0, 4);
-        _pollBox = new NumericUpDown { Minimum = 30, Maximum = 3600, Value = _config.FlavourPollSeconds, Dock = DockStyle.Fill };
-        mainPanel.Controls.Add(_pollBox, 1, 4);
+        // ── Flavour group ─────────────────────────────────────────────
+        var grpFlavour = new GroupBox
+        {
+            Text   = "Flavour",
+            Left   = 10, Top = 158,
+            Width  = 520, Height = 90
+        };
 
-        // Diagnostics
-        _diagCheck = new CheckBox { Text = "Enable Diagnostics", Checked = _config.Diagnostics, Dock = DockStyle.Fill, AutoSize = true };
-        mainPanel.Controls.Add(new Label(), 0, 5);
-        mainPanel.Controls.Add(_diagCheck, 1, 5);
-
-        mainPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-
-        // Buttons
-        var btnPanel = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 50 };
-        _updateFlavourBtn = new Button { Text = "🔄 Check Flavour Updates", Width = 150 };
-        _updateAppBtn    = new Button { Text = "⬆️ Check App Updates", Width = 150 };
-        _loadLocalBtn    = new Button { Text = "📁 Load Local Flavour", Width = 150 };
-        var saveBtn      = new Button { Text = "💾 Save & Reload", Width = 120, DialogResult = DialogResult.OK };
-
-        _updateFlavourBtn.Click += (_, _) => CheckFlavourUpdates();
-        _updateAppBtn.Click    += (_, _) => _ = Updater.CheckAsync(false);
-        _loadLocalBtn.Click    += (_, _) => LoadLocalFlavour();
-        saveBtn.Click          += (_, _) => SaveSettings();
-
-        btnPanel.Controls.AddRange(new Control[] { _updateFlavourBtn, _updateAppBtn, _loadLocalBtn, saveBtn });
-
-        Controls.Add(mainPanel);
-        Controls.Add(btnPanel);
-
-        _statusLabel = new Label { Dock = DockStyle.Bottom, Height = 20, Text = "Ready", ForeColor = System.Drawing.Color.Blue };
-        Controls.Add(_statusLabel);
-    }
-
-    private void LoadSettings()
-    {
-        _flavourCombo.Items.Clear();
-        foreach (var name in ConfigLoader.GetAvailableFlavours())
+        grpFlavour.Controls.Add(MakeLabel("Active Flavour:", 10, 22));
+        _flavourCombo = new ComboBox
+        {
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Left = 130, Top = 20, Width = 250
+        };
+        foreach (var name in ConfigLoader.GetAvailableFlavours(includeHidden: true))
             _flavourCombo.Items.Add(name);
-        _flavourCombo.SelectedItem = _config.Flavour;
-        Status("Settings loaded.");
+        _flavourCombo.SelectedItem = cfg.Flavour;
+        grpFlavour.Controls.Add(_flavourCombo);
+
+        var btnLoadLocal = MakeButton("📁 Load Local .json", 390, 19, 120);
+        btnLoadLocal.Click += (_, _) => LoadLocalFlavour();
+        grpFlavour.Controls.Add(btnLoadLocal);
+
+        _manualCheck = new CheckBox
+        {
+            Text    = "Manual mode — disable auto-updates from GitLab",
+            Checked = cfg.ManualMode,
+            Left    = 10, Top = 56,
+            Width   = 400
+        };
+        grpFlavour.Controls.Add(_manualCheck);
+
+        // ── Advanced group ────────────────────────────────────────────
+        var grpAdv = new GroupBox
+        {
+            Text   = "Advanced",
+            Left   = 10, Top = 256,
+            Width  = 520, Height = 80
+        };
+
+        grpAdv.Controls.Add(MakeLabel("Poll Interval (sec):", 10, 30));
+        _pollBox = new NumericUpDown
+        {
+            Minimum = 30, Maximum = 3600,
+            Value   = Math.Max(30, cfg.FlavourPollSeconds),
+            Left    = 140, Top = 28, Width = 80
+        };
+        grpAdv.Controls.Add(_pollBox);
+
+        _diagCheck = new CheckBox
+        {
+            Text    = "Enable Diagnostics",
+            Checked = cfg.Diagnostics,
+            Left    = 240, Top = 30, Width = 160
+        };
+        grpAdv.Controls.Add(_diagCheck);
+
+        // ── Action buttons ────────────────────────────────────────────
+        var btnCheckFlavour = MakeButton("🔄 Check Flavour Updates", 10, 350, 170);
+        btnCheckFlavour.Click += (_, _) => CheckFlavourUpdates();
+
+        var btnCheckApp = MakeButton("⬆️ Check App Updates", 190, 350, 155);
+        btnCheckApp.Click += (_, _) => _ = Updater.CheckAsync(false);
+
+        var btnSave = MakeButton("💾 Save & Apply", 355, 350, 175);
+        btnSave.BackColor = System.Drawing.Color.FromArgb(40, 167, 69);
+        btnSave.ForeColor = System.Drawing.Color.White;
+        btnSave.Click    += (_, _) => SaveSettings();
+
+        // ── Status bar ────────────────────────────────────────────────
+        _statusLabel = new Label
+        {
+            Text      = "Ready",
+            Left      = 10, Top = 395,
+            Width     = 520, Height = 20,
+            ForeColor = System.Drawing.Color.DarkBlue
+        };
+
+        var btnClose = MakeButton("Close", 430, 420, 100);
+        btnClose.Click += (_, _) => Close();
+
+        Controls.AddRange(new Control[]
+        {
+            grpConn, grpFlavour, grpAdv,
+            btnCheckFlavour, btnCheckApp, btnSave,
+            _statusLabel, btnClose
+        });
     }
 
     private void SaveSettings()
     {
-        _config.UrlServer          = _urlBox.Text;
-        _config.Flavour            = (string)_flavourCombo.SelectedItem!;
-        _config.KeyFile            = _keyBox.Text;
-        _config.TokenFile          = _tokenBox.Text;
-        _config.Diagnostics        = _diagCheck.Checked;
-        _config.FlavourPollSeconds = (int)_pollBox.Value;
+        try
+        {
+            var cfg = ConfigLoader.AppConfig;
 
-        File.WriteAllText(ConfigLoader.ConfigPath,
-            System.Text.Json.JsonSerializer.Serialize(_config, new System.Text.Json.JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true,
-                WriteIndented = true
-            }));
-        ConfigLoader.Reload();
-        Status("Settings saved and reloaded.");
+            cfg.UrlServer          = _urlBox?.Text ?? cfg.UrlServer;
+            cfg.KeyFile            = _keyBox?.Text ?? cfg.KeyFile;
+            cfg.TokenFile          = _tokenFileBox?.Text ?? cfg.TokenFile;
+            cfg.Token              = _tokenBox?.Text ?? cfg.Token;
+            cfg.Flavour            = (string?)_flavourCombo?.SelectedItem ?? cfg.Flavour;
+            cfg.Diagnostics        = _diagCheck?.Checked ?? cfg.Diagnostics;
+            cfg.ManualMode         = _manualCheck?.Checked ?? cfg.ManualMode;
+            cfg.FlavourPollSeconds = (int?)_pollBox?.Value ?? cfg.FlavourPollSeconds;
+
+            File.WriteAllText(ConfigLoader.ConfigPath,
+                System.Text.Json.JsonSerializer.Serialize(cfg, ConfigLoader.JsonOpts));
+
+            TokenManager.Reset();
+            ConfigLoader.Reload();
+            Status("✅ Settings saved and applied.");
+        }
+        catch (Exception ex)
+        {
+            Status($"Error saving: {ex.Message}");
+        }
     }
 
     private void CheckFlavourUpdates()
     {
-        Status("Checking for flavour updates...");
+        Status("Checking GitLab for flavour updates...");
         _ = Task.Run(async () =>
         {
             await ConfigLoader.CheckFlavourUpdateAsync();
-            Invoke(() => Status("Flavour check complete."));
+            Invoke(() => Status("✅ Flavour check complete."));
         });
     }
 
@@ -136,22 +188,47 @@ partial class SettingsWindow : Form
         var ofd = new OpenFileDialog
         {
             Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*",
-            Title  = "Select flavour.json"
+            Title  = "Select a flavour .json file"
         };
-        if (ofd.ShowDialog() == DialogResult.OK)
+
+        if (ofd.ShowDialog() != DialogResult.OK) return;
+
+        try
         {
-            var name = Path.GetFileNameWithoutExtension(ofd.FileName);
-            var path = Path.Combine(ConfigLoader.FlavourDir, $"{name}.json");
-            File.Copy(ofd.FileName, path, true);
-            _flavourCombo.Items.Add(name);
-            _flavourCombo.SelectedItem = name;
-            Status($"Loaded {name}.json");
+            var name = System.IO.Path.GetFileNameWithoutExtension(ofd.FileName);
+            var dest = System.IO.Path.Combine(ConfigLoader.FlavourDir, $"{name}.json");
+            File.Copy(ofd.FileName, dest, overwrite: true);
+
+            if (_flavourCombo != null && !_flavourCombo.Items.Contains(name))
+                _flavourCombo.Items.Add(name);
+
+            if (_flavourCombo != null)
+                _flavourCombo.SelectedItem = name;
+
+            Status($"✅ Loaded {name}.json into flavours folder.");
+        }
+        catch (Exception ex)
+        {
+            Status($"Error loading file: {ex.Message}");
         }
     }
 
     private void Status(string msg)
     {
-        _statusLabel.Text = msg;
-        _statusLabel.ForeColor = msg.Contains("Error") ? System.Drawing.Color.Red : System.Drawing.Color.Blue;
+        if (_statusLabel == null) return;
+        _statusLabel.Text      = msg;
+        _statusLabel.ForeColor = msg.StartsWith("Error") || msg.StartsWith("❌")
+            ? System.Drawing.Color.DarkRed
+            : System.Drawing.Color.DarkBlue;
     }
+
+    // ── Helpers ───────────────────────────────────────────────────────
+    private static Label MakeLabel(string text, int x, int y) =>
+        new() { Text = text, Left = x, Top = y, Width = 120, TextAlign = ContentAlignment.MiddleRight };
+
+    private static TextBox MakeTextBox(string text, int x, int y, int width, bool password = false) =>
+        new() { Text = text, Left = x, Top = y, Width = width, UseSystemPasswordChar = password };
+
+    private static Button MakeButton(string text, int x, int y, int width) =>
+        new() { Text = text, Left = x, Top = y, Width = width, Height = 28 };
 }

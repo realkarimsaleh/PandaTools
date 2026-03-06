@@ -20,6 +20,9 @@ public class AppConfig
     [JsonPropertyName("diagnostics")]
     public bool Diagnostics { get; set; } = false;
 
+    [JsonPropertyName("manual_mode")]
+    public bool ManualMode { get; set; } = false;
+
     [JsonPropertyName("flavour_project_id")]
     public int FlavourProjectId { get; set; } = 0;
 
@@ -60,7 +63,7 @@ public class FlavourItem
     public string Label { get; set; } = "";
 
     [JsonPropertyName("type")]
-    public string Type { get; set; } = "";  // url | script | powershell | exe
+    public string Type { get; set; } = "";
 
     [JsonPropertyName("value")]
     public string Value { get; set; } = "";
