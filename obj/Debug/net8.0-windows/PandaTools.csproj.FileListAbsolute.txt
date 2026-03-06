@@ -1,0 +1,5 @@
+C:\Code Repositories\LBU-ITSRK-Development\C#\PandaTools\obj\Debug\net8.0-windows\PandaTools.GeneratedMSBuildEditorConfig.editorconfig
+C:\Code Repositories\LBU-ITSRK-Development\C#\PandaTools\obj\Debug\net8.0-windows\PandaTools.AssemblyInfoInputs.cache
+C:\Code Repositories\LBU-ITSRK-Development\C#\PandaTools\obj\Debug\net8.0-windows\PandaTools.AssemblyInfo.cs
+C:\Code Repositories\LBU-ITSRK-Development\C#\PandaTools\obj\Debug\net8.0-windows\PandaTools.csproj.CoreCompileInputs.cache
+C:\Code Repositories\LBU-ITSRK-Development\C#\PandaTools\obj\Debug\net8.0-windows\PandaTools.sourcelink.json
