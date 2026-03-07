@@ -3,8 +3,8 @@ using System.Windows.Forms;
 
 public class TrayContext : ApplicationContext
 {
-    private readonly NotifyIcon _trayIcon;
-    private SynchronizationContext? _syncCtx;
+    private readonly NotifyIcon      _trayIcon;
+    private SynchronizationContext?  _syncCtx;
 
     public TrayContext()
     {
@@ -12,13 +12,13 @@ public class TrayContext : ApplicationContext
 
         _trayIcon = new NotifyIcon
         {
-            Icon             = new Icon("assets/PandaTools.ico"),
+            Icon             = AppIcon.Get(),
             Text             = $"PandaTools — {ConfigLoader.AppConfig.Flavour}",
             Visible          = true,
             ContextMenuStrip = MenuBuilder.Build(Exit)
         };
 
-        // Capture AFTER WinForms has initialised the sync context
+        // Capture sync context after WinForms initialises
         _syncCtx = SynchronizationContext.Current;
 
         // Rebuild menu on UI thread when config/flavour reloads
@@ -28,7 +28,7 @@ public class TrayContext : ApplicationContext
         _ = Updater.CheckAsync(silent: true);
     }
 
-    // PUBLIC — called by SettingsWindow after changes
+    // Called by SettingsWindow after changes
     public void RebuildMenu()
     {
         var old = _trayIcon.ContextMenuStrip;

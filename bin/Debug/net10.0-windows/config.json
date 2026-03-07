@@ -1,6 +1,6 @@
 {
   "url_server": "https://gitlab.leedsbeckett.ac.uk",
-  "flavour": "LBU-DS-ServiceDesk",
+  "flavour": "LBU-DS-SupportServices",
   "keyFile": "C:\\Windows\\Build\\Sync-Gitlab\\K_Sync-Gitlab.txt",
   "tokenFile": "C:\\Windows\\Build\\Sync-Gitlab\\C_Sync-Gitlab.txt",
   "token": "",
@@ -9,12 +9,12 @@
   "flavour_project_id": 0,
   "flavour_repo_path": "flavours",
   "flavour_poll_seconds": 300,
-  "browser_name": "chrome",
+  "browser_name": "default",
   "browser_path": "",
   "runas_profiles": [
     {
-      "name": "LBU Local Admin",
-      "username": "LeedsBeckett\\KSALEH",
+      "name": "Default Admin",
+      "username": "",
       "password": ""
     }
   ]

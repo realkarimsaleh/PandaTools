@@ -1,5 +1,6 @@
-using System.Text.Json;
 using System.Net.Http;
+using System.Text.Json;
+using System.Windows.Forms;
 
 public static class ConfigLoader
 {
@@ -9,17 +10,15 @@ public static class ConfigLoader
 
     public static event Action? OnConfigReloaded;
 
-    private static AppConfig?              _appConfig;
-    private static FlavourConfig?          _flavourConfig;
-    private static readonly object         _lock        = new();
-    private static System.Timers.Timer?    _pollTimer;
-    private static FileSystemWatcher?      _configWatcher;
-    private static string                  _lastHash    = "";
-    private static readonly HttpClient     Http         = new();
+    private static AppConfig?     _appConfig;
+    private static FlavourConfig? _flavourConfig;
+    private static readonly object _lock = new();
+    private static System.Timers.Timer?  _pollTimer;
+    private static FileSystemWatcher?    _configWatcher;
+    private static string _lastHash = "";
+    private static readonly HttpClient Http = new();
 
-    //private static readonly JsonSerializerOptions JsonOpts = new()
     public static readonly JsonSerializerOptions JsonOpts = new()
-
     {
         PropertyNameCaseInsensitive = true,
         ReadCommentHandling         = JsonCommentHandling.Skip,
@@ -35,18 +34,16 @@ public static class ConfigLoader
     {
         Directory.CreateDirectory(FlavourDir);
         EnsureDefaultFiles();
-
         lock (_lock)
         {
             _appConfig     = LoadAppConfig();
             _flavourConfig = LoadFlavourConfig(_appConfig.Flavour);
         }
-
         StartConfigWatcher();
         StartFlavourPoller();
     }
 
-    // ── Reload — called by watcher, poller, or manually ───────────────
+    // ── Reload (called by watcher, poller, or manually) ───────────────
     public static void Reload()
     {
         lock (_lock)
@@ -57,13 +54,13 @@ public static class ConfigLoader
         OnConfigReloaded?.Invoke();
     }
 
-    // ── Switch flavour — updates config.json and reloads ──────────────
+    // ── Switch flavour ────────────────────────────────────────────────
     public static void SetFlavour(string name)
     {
-        var cfg    = LoadAppConfig();
+        var cfg = LoadAppConfig();
         cfg.Flavour = name;
         File.WriteAllText(ConfigPath, JsonSerializer.Serialize(cfg, JsonOpts));
-        _lastHash = "";  // Force flavour re-download on next poll
+        _lastHash = "";
         Reload();
         StartFlavourPoller();
     }
@@ -71,17 +68,16 @@ public static class ConfigLoader
     // ── Toggle diagnostics ────────────────────────────────────────────
     public static void ToggleDiagnostics()
     {
-        var cfg       = LoadAppConfig();
+        var cfg = LoadAppConfig();
         cfg.Diagnostics = !cfg.Diagnostics;
         File.WriteAllText(ConfigPath, JsonSerializer.Serialize(cfg, JsonOpts));
         Reload();
     }
 
-    // ── Available flavours (excludes hidden unless requested) ─────────
+    // ── Available flavours ────────────────────────────────────────────
     public static string[] GetAvailableFlavours(bool includeHidden = false)
     {
         if (!Directory.Exists(FlavourDir)) return Array.Empty<string>();
-
         return Directory.GetFiles(FlavourDir, "*.json")
             .Select(f => Path.GetFileNameWithoutExtension(f)!)
             .Where(name =>
@@ -99,61 +95,81 @@ public static class ConfigLoader
             .ToArray();
     }
 
-    // ── Generate default files on first run ───────────────────────────
+    // ── Ensure default files on first run ─────────────────────────────
     private static void EnsureDefaultFiles()
     {
         if (!File.Exists(ConfigPath))
             File.WriteAllText(ConfigPath, JsonSerializer.Serialize(new AppConfig(), JsonOpts));
 
-        WriteDefaultFlavour("LBU-DS-ServiceDesk", false, new()
+        // ── LBU-DS-ServiceDesk ────────────────────────────────────────
+        WriteDefaultFlavour("LBU-DS-ServiceDesk", hidden: false, new List<FlavourSection>
         {
-            new() { Section = "Web Tools", Icon = "🌐", Items = new()
+            new()
             {
-                new() { Label = "Example Portal", Type = "url", Value = "https://example.com" }
-            }},
-            new() { Section = "GitLab Scripts", Icon = "☁️", Items = new()
+                Section = "Web Tools", Icon = "🌐",
+                Items = new()
+                {
+                    new() { Label = "Staff Portal",  Type = "url", Value = "https://portal.leedsbeckett.ac.uk" },
+                    new() { Label = "GitLab",         Type = "url", Value = "https://gitlab.leedsbeckett.ac.uk" },
+                    new() { Label = "Service Desk",   Type = "url", Value = "https://servicedesk.leedsbeckett.ac.uk" }
+                }
+            },
+            new()
             {
-                new() { Label = "Panopto Delta Informant", Type = "script",
-                        ProjectId = 522, FilePath = "Powershell/PanoptoDeltaInformant/PanoptoDeltaInformant.ps1" }
-            }}
+                Section = "GitLab Scripts", Icon = "📜",
+                Items = new()
+                {
+                    new() { Label = "Panopto Delta Informant", Type = "script", ProjectId = 522,
+                            FilePath = "Powershell/PanoptoDeltaInformant/PanoptoDeltaInformant.ps1" }
+                }
+            }
         });
 
-        WriteDefaultFlavour("LBU-DS-SupportServices", false, new()
+        // ── LBU-DS-SupportServices ────────────────────────────────────
+        WriteDefaultFlavour("LBU-DS-SupportServices", hidden: false, new List<FlavourSection>
         {
-            new() { Section = "Support Tools", Icon = "🔧", Items = new()
+            new()
             {
-                new() { Label = "Example Tool", Type = "url", Value = "https://example.com" }
-            }}
-        });
-
-        WriteDefaultFlavour("KDEV", true, new()
-        {
-            new() { Section = "Dev Tools", Icon = "💻", Items = new()
+                Section = "Support Tools", Icon = "🛠️",
+                Items = new()
+                {
+                    new() { Label = "Service Desk",  Type = "url",        Value = "https://servicedesk.leedsbeckett.ac.uk" },
+                    new() { Label = "Staff Portal",  Type = "url",        Value = "https://portal.leedsbeckett.ac.uk" },
+                    new() { Label = "Flush DNS",      Type = "powershell", Value = "ipconfig /flushdns" }
+                }
+            },
+            new()
             {
-                new() { Label = "Home Assistant",   Type = "url", Value = "http://homeassistant.local:8123" },
-                new() { Label = "Proxmox",           Type = "url", Value = "https://192.168.1.5:8006" },
-                new() { Label = "Portainer",         Type = "url", Value = "http://192.168.1.10:9000" },
-                new() { Label = "Flush DNS",         Type = "powershell", Value = "ipconfig /flushdns" }
-            }}
+                Section = "Applications", Icon = "🖥️",
+                Items = new()
+                {
+                    new() { Label = "SCCM Console",   Type = "app",
+                            Value = @"C:\Program Files (x86)\Microsoft Configuration Manager\AdminConsole\bin\Microsoft.ConfigurationManagement.exe" },                }
+            },
+            new()
+            {
+                Section = "GitLab Scripts", Icon = "📜",
+                Items = new()
+                {
+                    new() { Label = "SCCM Collection Tool", Type = "script", ProjectId = 525,
+                            FilePath = "SCCMCollectionMembership-Utility.ps1" }
+                }
+            }
         });
     }
 
     private static void WriteDefaultFlavour(string name, bool hidden, List<FlavourSection> sections)
     {
         var path = Path.Combine(FlavourDir, $"{name}.json");
-        if (File.Exists(path)) return;
-        var fc = new FlavourConfig { Hidden = hidden, Menu = sections };
+        if (File.Exists(path)) return;   // never overwrite user edits
+        var fc = new FlavourConfig { Version = "1.0", Hidden = hidden, Menu = sections };
         File.WriteAllText(path, JsonSerializer.Serialize(fc, JsonOpts));
     }
 
     // ── File loading ──────────────────────────────────────────────────
     private static AppConfig LoadAppConfig()
     {
-        try
-        {
-            return JsonSerializer.Deserialize<AppConfig>(File.ReadAllText(ConfigPath), JsonOpts)
-                   ?? new AppConfig();
-        }
+        try { return JsonSerializer.Deserialize<AppConfig>(File.ReadAllText(ConfigPath), JsonOpts) ?? new AppConfig(); }
         catch { return new AppConfig(); }
     }
 
@@ -161,11 +177,7 @@ public static class ConfigLoader
     {
         var path = Path.Combine(FlavourDir, $"{name}.json");
         if (!File.Exists(path)) return new FlavourConfig();
-        try
-        {
-            return JsonSerializer.Deserialize<FlavourConfig>(File.ReadAllText(path), JsonOpts)
-                   ?? new FlavourConfig();
-        }
+        try { return JsonSerializer.Deserialize<FlavourConfig>(File.ReadAllText(path), JsonOpts) ?? new FlavourConfig(); }
         catch { return new FlavourConfig(); }
     }
 
@@ -175,9 +187,9 @@ public static class ConfigLoader
         _configWatcher?.Dispose();
         _configWatcher = new FileSystemWatcher(ConfigDir)
         {
-            Filter              = "config.json",
-            NotifyFilter        = NotifyFilters.LastWrite,
-            EnableRaisingEvents = true
+            Filter               = "config.json",
+            NotifyFilter         = NotifyFilters.LastWrite,
+            EnableRaisingEvents  = true
         };
         var debounce = new System.Timers.Timer(500) { AutoReset = false };
         debounce.Elapsed += (_, _) => Reload();
@@ -192,8 +204,6 @@ public static class ConfigLoader
         _pollTimer = new System.Timers.Timer(ms) { AutoReset = true };
         _pollTimer.Elapsed += async (_, _) => await CheckFlavourUpdateAsync();
         _pollTimer.Start();
-
-        _ = CheckFlavourUpdateAsync();  // Check immediately on start
     }
 
     public static async Task CheckFlavourUpdateAsync()
@@ -201,7 +211,7 @@ public static class ConfigLoader
         try
         {
             var cfg = AppConfig;
-            if (cfg.FlavourProjectId <= 0) return;
+            if (cfg.ManualMode || cfg.FlavourProjectId == 0) return;
 
             var token = TokenManager.GetToken();
             Http.DefaultRequestHeaders.Remove("PRIVATE-TOKEN");
@@ -209,26 +219,24 @@ public static class ConfigLoader
             if (!Http.DefaultRequestHeaders.UserAgent.Any())
                 Http.DefaultRequestHeaders.UserAgent.ParseAdd("PandaTools");
 
-            var apiBase  = cfg.UrlServer.TrimEnd('/') + "/api/v4";
-            var repoPath = $"{cfg.FlavourRepoPath.TrimEnd('/')}/{cfg.Flavour}.json";
-            var encoded  = Uri.EscapeDataString(repoPath);
-            var metaUrl  = $"{apiBase}/projects/{cfg.FlavourProjectId}/repository/files/{encoded}?ref=main";
+            var apiBase   = cfg.UrlServer.TrimEnd('/') + "/api/v4";
+            var repoPath  = $"{cfg.FlavourRepoPath.TrimEnd('/')}/{cfg.Flavour}.json";
+            var encoded   = Uri.EscapeDataString(repoPath);
+            var metaUrl   = $"{apiBase}/projects/{cfg.FlavourProjectId}/repository/files/{encoded}?ref=main";
 
-            using var cts  = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            var metaJson   = await Http.GetStringAsync(metaUrl, cts.Token);
-            var meta       = JsonSerializer.Deserialize<JsonElement>(metaJson);
-            var latestHash = meta.GetProperty("last_commit_id").GetString() ?? "";
+            using var cts      = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var       metaJson = await Http.GetStringAsync(metaUrl, cts.Token);
+            var       meta     = JsonSerializer.Deserialize<JsonElement>(metaJson);
+            var       latest   = meta.GetProperty("last_commit_id").GetString() ?? "";
 
-            if (latestHash == _lastHash && _lastHash != "") return;
+            if (latest == _lastHash || latest == "") return;
 
             var rawUrl  = $"{apiBase}/projects/{cfg.FlavourProjectId}/repository/files/{encoded}/raw?ref=main";
             var content = await Http.GetStringAsync(rawUrl);
-
             await File.WriteAllTextAsync(Path.Combine(FlavourDir, $"{cfg.Flavour}.json"), content);
-            _lastHash = latestHash;
-
+            _lastHash = latest;
             Reload();
         }
-        catch { /* Off-network or not configured — fail silently */ }
+        catch { /* off-network or not configured — fail silently */ }
     }
 }

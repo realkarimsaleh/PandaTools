@@ -14,11 +14,11 @@ public static class TokenManager
 
         var cfg = ConfigLoader.AppConfig;
 
-        // 1) Plaintext token from config.json
+        // Plaintext token from config.json
         if (!string.IsNullOrWhiteSpace(cfg.Token))
             return _cachedToken = cfg.Token;
 
-        // 2) Encrypted via key + token files from config.json
+        // Encrypted via key + token files from config.json
         if (string.IsNullOrWhiteSpace(cfg.KeyFile)   || !File.Exists(cfg.KeyFile)   ||
             string.IsNullOrWhiteSpace(cfg.TokenFile)  || !File.Exists(cfg.TokenFile) ||
             !File.Exists(PS51))
