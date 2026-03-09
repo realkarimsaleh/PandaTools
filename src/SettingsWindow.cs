@@ -48,7 +48,7 @@ public class SettingsWindow : Form
 
     public SettingsWindow()
     {
-        Text            = "PandaTools — Settings";
+        Text            = "PandaTools - Settings";
         StartPosition   = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox     = false;

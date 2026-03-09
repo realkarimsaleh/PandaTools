@@ -19,11 +19,6 @@
           "value": "https://www.timeforstorm.com/dta" 
         },
         {
-          "label": "USERMAN",
-          "type": "url",
-          "value": "https://userman.leedsbeckett.ac.uk/RDWeb/Pages/en-US/login.aspx?ReturnUrl=/RDWeb/Pages/en-US/Default.aspx" 
-        },
-        {
           "label": "ADAudit",
           "type": "url",
           "value": "https://cc-audit1.leedsbeckett.ac.uk:8444" 
@@ -32,11 +27,6 @@
           "label": "Panopto",
           "type": "url",
           "value": "https://leedsbeckettreplay.cloud.panopto.eu/"
-        },
-        { 
-          "label": "LapSafe ONARKEN",
-          "type": "url", 
-          "value": "https://leedsbeckett.onarken.com/dashboard" 
         },
         { 
           "label": "EAC (incognito)", 
@@ -53,6 +43,7 @@
           "type": "incognito", 
           "value": "https://cc-cox.leedsbeckett.ac.uk:8443"
         }
+
       ]
     },
     {
@@ -61,76 +52,14 @@
       "items":
       [
         {
-          "label": "Planet eStream",
-          "type": "url",
-          "value": "https://tv.leedsbeckett.ac.uk/default.aspx"
-        },
-        {
           "label": "Crestron Fusion",
           "type": "url",
           "value": "https://aql-cfusion.leedsbeckett.ac.uk/Fusion/WebClient"
         },
         {
-          "label": "ToolBox",
-          "type": "app",
-          "value": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Crestron\\Toolbox\\Toolbox.lnk"
-        },
-        {
           "label": "XPanel Active Panels",
           "type": "explorer",
           "value": "\\\\cc1-data14.leedsbeckett.ac.uk\\home14\\LIS\\2_LIS_Departmental_PS\\CS-GSL-KD\\Teams\\Development Services\\AV tech store\\Crestron X Panels\\Active Panels"
-        }
-      ]
-    },
-    {
-      "section": "BeckettPrint Admin",
-      "icon": "🖨️",
-      "items":
-      [
-        {
-          "label": "HP Web Jetadmin",
-          "type": "app",
-          "value": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
-          "arguments": "https://wja.leedsbeckett.ac.uk:8443/"
-        },
-        {
-          "label": "BeckettPrint Admin",
-          "type": "url",
-          "value": "https://beckettprint.leedsbeckett.ac.uk/admin"
-        }
-      ]
-    },
-    {
-      "section": "Network Tools",
-      "icon": "🛜",
-      "items":
-      [
-        {
-          "label": "XIQ",
-          "type": "url",
-          "value": "https://xiq-se:8443"
-        },
-        {
-          "label": "IPAM",
-          "type": "url",
-          "value": "https://vipera-a.leedsbeckett.ac.uk"
-        }
-      ]
-    },
-    {
-      "section": "Security Tools",
-      "icon": "🛡️",
-      "items":
-      [
-        {
-          "label": "Secret Server",
-          "type": "url",
-          "value": "https://thycotic.leedsbeckett.ac.uk/"
-        },
-        {
-          "label": "ESET (DEPRECATING)",
-          "type": "url",
-          "value": "https://eset-man.leedsbeckett.ac.uk/era/webconsole/"
         }
       ]
     },
@@ -198,7 +127,7 @@
           "value": "C:\\Program Files (x86)\\SCCM2012Console\\bin\\i386\\CmRcViewer.exe",
           "arguments": "41386CP"
         }
-      ]
+    ]
     },
     {
       "section": "GitLab Scripts",
@@ -212,6 +141,15 @@
           "filePath": "SCCMCollectionMembership-Utility.ps1",
           "branch": "main"
         }
+      ]
+    },
+    {
+      "section": "Local Scripts",
+      "icon": "⚡",
+      "items":
+      [
+        { "label": "Flush DNS",     "type": "powershell", "value": "ipconfig /flushdns" },
+        { "label": "Restart Wi-Fi", "type": "powershell", "value": "Restart-NetAdapter -Name 'Wi-Fi' -Confirm:$false" }
       ]
     }
   ]

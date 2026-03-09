@@ -100,7 +100,8 @@ public class FlavourItem
     public string Arguments { get; set; } = "";
 
     [JsonPropertyName("runas_profile")]
-    public string RunAsProfile { get; set; } = "";  // Matches RunAsProfile.Name in AppConfig
+    public string RunAsProfile { get; set; } = "";
+    // Matches RunAsProfile.Name in AppConfig.RunAsProfiles  
 
     [JsonPropertyName("admin")]
     public bool Admin { get; set; } = false;

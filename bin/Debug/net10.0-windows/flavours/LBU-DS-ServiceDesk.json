@@ -34,11 +34,6 @@
           "value": "https://leedsbeckettreplay.cloud.panopto.eu/"
         },
         { 
-          "label": "LapSafe ONARKEN",
-          "type": "url", 
-          "value": "https://leedsbeckett.onarken.com/dashboard" 
-        },
-        { 
           "label": "EAC (incognito)", 
           "type": "incognito", 
           "value": "https://lbmail.leedsbeckett.ac.uk/ecp/" 
@@ -61,19 +56,9 @@
       "items":
       [
         {
-          "label": "Planet eStream",
-          "type": "url",
-          "value": "https://tv.leedsbeckett.ac.uk/default.aspx"
-        },
-        {
           "label": "Crestron Fusion",
           "type": "url",
           "value": "https://aql-cfusion.leedsbeckett.ac.uk/Fusion/WebClient"
-        },
-        {
-          "label": "ToolBox",
-          "type": "app",
-          "value": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Crestron\\Toolbox\\Toolbox.lnk"
         },
         {
           "label": "XPanel Active Panels",
@@ -83,16 +68,10 @@
       ]
     },
     {
-      "section": "BeckettPrint Admin",
+      "section": "BeckettPrint",
       "icon": "🖨️",
       "items":
       [
-        {
-          "label": "HP Web Jetadmin",
-          "type": "app",
-          "value": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
-          "arguments": "https://wja.leedsbeckett.ac.uk:8443/"
-        },
         {
           "label": "BeckettPrint Admin",
           "type": "url",
@@ -109,11 +88,6 @@
           "label": "XIQ",
           "type": "url",
           "value": "https://xiq-se:8443"
-        },
-        {
-          "label": "IPAM",
-          "type": "url",
-          "value": "https://vipera-a.leedsbeckett.ac.uk"
         }
       ]
     },

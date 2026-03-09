@@ -13,7 +13,7 @@ public class TrayContext : ApplicationContext
         _trayIcon = new NotifyIcon
         {
             Icon             = AppIcon.Get(),
-            Text             = $"PandaTools — {ConfigLoader.AppConfig.Flavour}",
+            Text             = $"PandaTools - {ConfigLoader.AppConfig.Flavour}",
             Visible          = true,
             ContextMenuStrip = MenuBuilder.Build(Exit)
         };
@@ -33,7 +33,7 @@ public class TrayContext : ApplicationContext
     {
         var old = _trayIcon.ContextMenuStrip;
         _trayIcon.ContextMenuStrip = MenuBuilder.Build(Exit);
-        _trayIcon.Text             = $"PandaTools — {ConfigLoader.AppConfig.Flavour}";
+        _trayIcon.Text             = $"PandaTools - {ConfigLoader.AppConfig.Flavour}";
         old?.Dispose();
     }
 

@@ -2,6 +2,8 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
+using System.Security;
 using System.Windows.Forms;
 
 public static class MenuBuilder
@@ -12,20 +14,16 @@ public static class MenuBuilder
         var flavour = ConfigLoader.FlavourConfig;
         var cfg     = ConfigLoader.AppConfig;
 
-        // Flavour name at top (non-clickable)
         menu.Items.Add(new ToolStripMenuItem(cfg.Flavour) { Enabled = false });
         menu.Items.Add(new ToolStripSeparator());
 
-        // Dynamic menu from flavour JSON
         foreach (var section in flavour.Menu)
         {
             if (string.IsNullOrWhiteSpace(section.Section)) continue;
-
             var label   = string.IsNullOrWhiteSpace(section.Icon)
                 ? section.Section
                 : $"{section.Icon} {section.Section}";
             var submenu = new ToolStripMenuItem(label);
-
             foreach (var item in section.Items)
             {
                 var m = new ToolStripMenuItem(item.Label);
@@ -35,15 +33,10 @@ public static class MenuBuilder
             menu.Items.Add(submenu);
         }
 
-        // Footer
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("⚙️ Settings", null, (_, _) =>
         {
-            try
-            {
-                using var w = new SettingsWindow();
-                w.ShowDialog();
-            }
+            try { using var w = new SettingsWindow(); w.ShowDialog(); }
             catch (Exception ex)
             {
                 MessageBox.Show($"Could not open settings:\n{ex.Message}",
@@ -56,51 +49,73 @@ public static class MenuBuilder
         return menu;
     }
 
+    // ── Handler router ────────────────────────────────────────────────
     private static EventHandler ResolveHandler(FlavourItem item) =>
         item.Type.ToLowerInvariant() switch
         {
-            // ── Open URL in default browser ───────────────────────────
             "url" => (_, _) =>
                 Process.Start(new ProcessStartInfo(item.Value) { UseShellExecute = true }),
 
-            // ── Open URL in private/incognito mode ────────────────────
             "incognito" => (_, _) =>
             {
                 var cfg = ConfigLoader.AppConfig;
                 OpenIncognito(item.Value, cfg.BrowserName, cfg.BrowserPath);
             },
 
-            // ── Launch application (no elevation) ─────────────────────
             "app" => (_, _) =>
             {
                 try
                 {
+                    var (exe, args) = ParseCommandLine(item.Value, item.Arguments);
                     Process.Start(new ProcessStartInfo
                     {
-                        FileName        = item.Value,
-                        Arguments       = item.Arguments,
+                        FileName        = exe,
+                        Arguments       = args,
                         UseShellExecute = true
                     });
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show($"Could not launch application:\n{ex.Message}",
+                    MessageBox.Show($"Could not launch:\n{ex.Message}",
                         "Launch Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             },
 
-            // ── Launch application as Admin or Different User ─────────
+            "explorer" => (_, _) =>
+            {
+                try
+                {
+                    var path = item.Value.Trim();
+                    if (!Directory.Exists(path) && !File.Exists(path))
+                    {
+                        MessageBox.Show(
+                            $"Path not found or inaccessible:\n{path}",
+                            "PandaTools", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName        = "explorer.exe",
+                        Arguments       = $"\"{path}\"",
+                        UseShellExecute = true
+                    });
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Could not open path:\n{ex.Message}",
+                        "PandaTools Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            },
+
             "runas" => (_, _) =>
             {
                 var cfg     = ConfigLoader.AppConfig;
-                var profile = cfg.RunAsProfiles
-                    .FirstOrDefault(p => p.Name.Equals(
-                        item.RunAsProfile, StringComparison.OrdinalIgnoreCase));
-
-                LaunchAsUser(item.Value, item.Arguments, profile);
+                var profile = cfg.RunAsProfiles.FirstOrDefault(p =>
+                    p.Name.Equals(item.RunAsProfile, StringComparison.OrdinalIgnoreCase));
+                var (parsedExe, parsedArgs) = ParseCommandLine(item.Value, item.Arguments);
+                LaunchAsUser(parsedExe, parsedArgs, profile);
             },
 
-            // ── Run inline PowerShell command ─────────────────────────
             "powershell" => (_, _) =>
                 Process.Start(new ProcessStartInfo
                 {
@@ -110,17 +125,20 @@ public static class MenuBuilder
                     CreateNoWindow  = true
                 }),
 
-            // ── Launch .exe directly (legacy) ─────────────────────────
             "exe" => (_, _) =>
-                Process.Start(new ProcessStartInfo(item.Value) { UseShellExecute = true }),
+            {
+                var (exe, args) = ParseCommandLine(item.Value, item.Arguments);
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName        = exe,
+                    Arguments       = args,
+                    UseShellExecute = true
+                });
+            },
 
-            // ── Fetch and run script from GitLab ──────────────────────
             "script" => async (_, _) =>
             {
-                try
-                {
-                    await GitLabScriptRunner.RunAsync(item.ProjectId, item.FilePath, item.Branch);
-                }
+                try { await GitLabScriptRunner.RunAsync(item.ProjectId, item.FilePath, item.Branch); }
                 catch (Exception ex)
                 {
                     MessageBox.Show($"Script error:\n{ex.Message}",
@@ -131,45 +149,150 @@ public static class MenuBuilder
             _ => (_, _) => { }
         };
 
-    // ── RunAs / UAC launcher ──────────────────────────────────────────
-    private static void LaunchAsUser(string exe, string arguments, RunAsProfile? profile)
+    // ── ParseCommandLine ──────────────────────────────────────────────
+    // Splits a Value string into (exe, args) supporting these formats:
+    //
+    //   "C:\path with spaces\app.exe" ARGS     ← quoted
+    //   "C:\path with spaces\app.exe"          ← quoted, no args
+    //   C:\no spaces\app.exe HOSTNAME          ← unquoted with args
+    //   C:\path with spaces\app.exe            ← unquoted, walks spaces to find file
+    //
+    private static (string exe, string args) ParseCommandLine(string value, string? extraArgs)
+    {
+        value = value?.Trim() ?? "";
+
+        string exe;
+        string inlineArgs;
+
+        if (value.StartsWith("\""))
+        {
+            // Quoted exe — find closing quote
+            int close = value.IndexOf('"', 1);
+            if (close < 0)
+            {
+                exe        = value.Trim('"');
+                inlineArgs = "";
+            }
+            else
+            {
+                exe        = value.Substring(1, close - 1);
+                inlineArgs = value.Substring(close + 1).Trim();
+            }
+        }
+        else
+        {
+            // Unquoted — walk each space and check if the left portion
+            // is an existing file on disk. Handles paths like:
+            //   C:\Program Files (x86)\App\app.exe HOSTNAME
+            //   C:\ProgramData\Microsoft\Windows\Start Menu\Programs\App.lnk
+            exe        = value;
+            inlineArgs = "";
+
+            int searchFrom = 0;
+            var found      = false;
+
+            while (true)
+            {
+                int space = value.IndexOf(' ', searchFrom);
+                if (space < 0) break;
+
+                var candidate = value.Substring(0, space);
+                if (File.Exists(candidate))
+                {
+                    exe        = candidate;
+                    inlineArgs = value.Substring(space + 1).Trim();
+                    found      = true;
+                    break;
+                }
+
+                searchFrom = space + 1;
+            }
+
+            // No file found by walking — treat whole value as the exe
+            // (handles bare names like "notepad.exe" or UNC paths)
+            if (!found)
+            {
+                exe        = value;
+                inlineArgs = "";
+            }
+        }
+
+        // Merge inline args with any separate Arguments field
+        var combined = string.IsNullOrWhiteSpace(extraArgs)
+            ? inlineArgs
+            : string.IsNullOrWhiteSpace(inlineArgs)
+                ? extraArgs
+                : $"{inlineArgs} {extraArgs}";
+
+        return (exe, combined);
+    }
+
+    // ── Main RunAs launcher ───────────────────────────────────────────
+    private static void LaunchAsUser(string target, string arguments, RunAsProfile? profile)
     {
         try
         {
-            var psi = new ProcessStartInfo
-            {
-                FileName        = exe,
-                Arguments       = arguments,
-                UseShellExecute = true,
-                Verb            = "runas"   // Always triggers UAC
-            };
+            var (resolvedExe, resolvedArgs) = ResolveToExecutable(target, arguments);
 
-            // If a profile with a username is set, use those credentials
-            if (profile != null && !string.IsNullOrWhiteSpace(profile.Username))
+            if (profile == null || string.IsNullOrWhiteSpace(profile.Username))
             {
-                psi.UseShellExecute = false;
-                psi.UserName        = profile.Username.Contains("\\")
-                    ? profile.Username.Split('\\')[1]
-                    : profile.Username;
-                psi.Domain          = profile.Username.Contains("\\")
-                    ? profile.Username.Split('\\')[0]
-                    : Environment.MachineName;
-
-                if (!string.IsNullOrWhiteSpace(profile.Password))
+                Process.Start(new ProcessStartInfo
                 {
-                    var secure = new System.Security.SecureString();
-                    foreach (var c in profile.Password)
-                        secure.AppendChar(c);
-                    psi.Password = secure;
-                }
-                // Empty password = Windows credential prompt
+                    FileName        = resolvedExe,
+                    Arguments       = resolvedArgs,
+                    UseShellExecute = true,
+                    Verb            = "runas"
+                });
+                return;
             }
 
-            Process.Start(psi);
+            string domain;
+            string user;
+
+            if (profile.Username.Contains('\\'))
+            {
+                var parts = profile.Username.Split('\\', 2);
+                domain = parts[0];
+                user   = parts[1];
+            }
+            else if (profile.Username.Contains('@'))
+            {
+                domain = ".";
+                user   = profile.Username;
+            }
+            else
+            {
+                domain = Environment.MachineName;
+                user   = profile.Username;
+            }
+
+            SecureString password;
+
+            if (!string.IsNullOrEmpty(profile.Password))
+            {
+                password = ToSecureString(profile.Password);
+            }
+            else
+            {
+                var (ok, entered) = PromptForPassword(profile.Username);
+                if (!ok) return;
+                password = ToSecureString(entered);
+            }
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName        = resolvedExe,
+                Arguments       = resolvedArgs,
+                UseShellExecute = false,
+                UserName        = user,
+                Domain          = domain,
+                Password        = password,
+                LoadUserProfile = true
+            });
         }
         catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
         {
-            // User clicked Cancel on UAC — silent
+            // ERROR_CANCELLED — silent
         }
         catch (Exception ex)
         {
@@ -178,92 +301,181 @@ public static class MenuBuilder
         }
     }
 
-    // ── Incognito launcher ────────────────────────────────────────────
+    // ── Resolve any file type to a launchable exe + args ─────────────
+    private static (string exe, string args) ResolveToExecutable(string target, string extraArgs)
+    {
+        var ext = Path.GetExtension(target).ToLowerInvariant();
+
+        switch (ext)
+        {
+            case ".lnk":
+                var (lnkExe, lnkArgs) = ResolveLnk(target);
+                if (!string.IsNullOrEmpty(lnkExe))
+                {
+                    var combined = string.IsNullOrEmpty(lnkArgs)
+                        ? extraArgs
+                        : $"{lnkArgs} {extraArgs}".Trim();
+                    return ResolveToExecutable(lnkExe, combined);
+                }
+                goto default;
+
+            case ".msc":
+                var mmcPath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.System), "mmc.exe");
+                return (mmcPath, string.IsNullOrWhiteSpace(extraArgs)
+                    ? $"\"{target}\""
+                    : $"\"{target}\" {extraArgs}");
+
+            case ".cpl":
+                var controlPath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.System), "control.exe");
+                return (controlPath, $"\"{target}\"");
+
+            case ".bat":
+            case ".cmd":
+                var cmdPath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.System), "cmd.exe");
+                return (cmdPath, string.IsNullOrWhiteSpace(extraArgs)
+                    ? $"/c \"{target}\""
+                    : $"/c \"{target}\" {extraArgs}");
+
+            case ".ps1":
+                var psPath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.System),
+                    @"WindowsPowerShell\v1.0\powershell.exe");
+                if (!File.Exists(psPath)) psPath = "powershell.exe";
+                return (psPath, string.IsNullOrWhiteSpace(extraArgs)
+                    ? $"-NoProfile -ExecutionPolicy Bypass -File \"{target}\""
+                    : $"-NoProfile -ExecutionPolicy Bypass -File \"{target}\" {extraArgs}");
+
+            case ".exe":
+                return (target, extraArgs);
+
+            default:
+                return (target, extraArgs);
+        }
+    }
+
+    // ── Resolve .lnk shortcut ─────────────────────────────────────────
+    private static (string target, string args) ResolveLnk(string lnkPath)
+    {
+        try
+        {
+            var shellType = Type.GetTypeFromProgID("WScript.Shell");
+            if (shellType == null) return ("", "");
+            dynamic shell    = Activator.CreateInstance(shellType)!;
+            dynamic shortcut = shell.CreateShortcut(lnkPath);
+            string  tgt      = shortcut.TargetPath ?? "";
+            string  args2    = shortcut.Arguments  ?? "";
+            Marshal.ReleaseComObject(shortcut);
+            Marshal.ReleaseComObject(shell);
+            return (tgt, args2);
+        }
+        catch { return ("", ""); }
+    }
+
+    // ── Password prompt ───────────────────────────────────────────────
+    private static (bool ok, string password) PromptForPassword(string username)
+    {
+        var frm = new Form
+        {
+            Text            = "PandaTools - Enter Password",
+            Size            = new System.Drawing.Size(360, 162),
+            StartPosition   = FormStartPosition.CenterScreen,
+            FormBorderStyle = FormBorderStyle.FixedDialog,
+            MaximizeBox     = false, MinimizeBox = false,
+            TopMost         = true,
+            Icon            = AppIcon.Get()
+        };
+        frm.Controls.Add(new Label
+        {
+            Text = $"Password for  {username}:",
+            Left = 12, Top = 16, Width = 330, Height = 20,
+            Font = new System.Drawing.Font("Segoe UI", 9f)
+        });
+        var txtPass = new TextBox
+        {
+            Left = 12, Top = 42, Width = 330,
+            UseSystemPasswordChar = true,
+            Font = new System.Drawing.Font("Segoe UI", 9f)
+        };
+        frm.Controls.Add(txtPass);
+        var btnOk = new Button
+        {
+            Text = "OK", Left = 172, Top = 78, Width = 82, Height = 28,
+            DialogResult = DialogResult.OK,
+            Font = new System.Drawing.Font("Segoe UI", 9f)
+        };
+        var btnCancel = new Button
+        {
+            Text = "Cancel", Left = 260, Top = 78, Width = 82, Height = 28,
+            DialogResult = DialogResult.Cancel,
+            Font = new System.Drawing.Font("Segoe UI", 9f)
+        };
+        frm.Controls.AddRange(new System.Windows.Forms.Control[] { btnOk, btnCancel });
+        frm.AcceptButton = btnOk;
+        frm.CancelButton = btnCancel;
+        var dlg = frm.ShowDialog();
+        var pwd = txtPass.Text;
+        frm.Dispose();
+        return (dlg == DialogResult.OK, pwd);
+    }
+
+    // ── SecureString helper ───────────────────────────────────────────
+    private static SecureString ToSecureString(string input)
+    {
+        var s = new SecureString();
+        foreach (var c in input) s.AppendChar(c);
+        s.MakeReadOnly();
+        return s;
+    }
+
+    // ── Incognito ─────────────────────────────────────────────────────
     private static void OpenIncognito(string url, string browserName, string customPath)
     {
         try
         {
-            string exePath;
-            string args;
-
-            switch (browserName.ToLowerInvariant())
+            var (exePath, flag) = browserName.ToLowerInvariant() switch
             {
-                case "chrome":
-                    exePath = FindChrome();
-                    args    = $"--incognito \"{url}\"";
-                    break;
-                case "edge":
-                    exePath = FindEdge();
-                    args    = $"--inprivate \"{url}\"";
-                    break;
-                case "firefox":
-                    exePath = FindFirefox();
-                    args    = $"-private-window \"{url}\"";
-                    break;
-                case "brave":
-                    exePath = FindBrave();
-                    args    = $"--incognito \"{url}\"";
-                    break;
-                case "custom":
-                    exePath = customPath;
-                    args    = $"--incognito \"{url}\"";
-                    break;
-                default:
-                    exePath = "";
-                    args    = "";
-                    break;
-            }
-
+                "chrome"  => (FindBrowser("chrome"),  "--incognito"),
+                "edge"    => (FindBrowser("edge"),    "--inprivate"),
+                "firefox" => (FindBrowser("firefox"), "-private-window"),
+                "brave"   => (FindBrowser("brave"),   "--incognito"),
+                "custom"  => (customPath,             "--incognito"),
+                _         => ("", "")
+            };
             if (!string.IsNullOrEmpty(exePath) && File.Exists(exePath))
             {
                 Process.Start(new ProcessStartInfo
                 {
                     FileName        = exePath,
-                    Arguments       = args,
+                    Arguments       = $"{flag} \"{url}\"",
                     UseShellExecute = true
                 });
                 return;
             }
-
-            // Universal fallback — PowerShell private window
-            Process.Start(new ProcessStartInfo
-            {
-                FileName        = "powershell.exe",
-                Arguments       = $"-NoProfile -Command \"Start-Process '{url}' -WindowStyle Private\"",
-                UseShellExecute = true
-            });
-        }
-        catch
-        {
             Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
         }
+        catch { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); }
     }
 
-    private static string FindChrome() =>
-        new[]
-        {
+    private static string FindBrowser(string name) => name switch
+    {
+        "chrome"  => FirstExisting(
             @"C:\Program Files\Google\Chrome\Application\chrome.exe",
-            @"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
-        }.FirstOrDefault(File.Exists) ?? "";
-
-    private static string FindEdge() =>
-        new[]
-        {
+            @"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"),
+        "edge"    => FirstExisting(
             @"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
-            @"C:\Program Files\Microsoft\Edge\Application\msedge.exe"
-        }.FirstOrDefault(File.Exists) ?? "";
-
-    private static string FindFirefox() =>
-        new[]
-        {
+            @"C:\Program Files\Microsoft\Edge\Application\msedge.exe"),
+        "firefox" => FirstExisting(
             @"C:\Program Files\Mozilla Firefox\firefox.exe",
-            @"C:\Program Files (x86)\Mozilla Firefox\firefox.exe"
-        }.FirstOrDefault(File.Exists) ?? "";
-
-    private static string FindBrave() =>
-        new[]
-        {
+            @"C:\Program Files (x86)\Mozilla Firefox\firefox.exe"),
+        "brave"   => FirstExisting(
             @"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe",
-            @"C:\Program Files (x86)\BraveSoftware\Brave-Browser\Application\brave.exe"
-        }.FirstOrDefault(File.Exists) ?? "";
+            @"C:\Program Files (x86)\BraveSoftware\Brave-Browser\Application\brave.exe"),
+        _         => ""
+    };
+
+    private static string FirstExisting(params string[] paths) =>
+        paths.FirstOrDefault(File.Exists) ?? "";
 }

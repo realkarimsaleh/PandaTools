@@ -86,13 +86,13 @@ public static class GitLabScriptRunner
             {
                 MessageBox.Show(
                     diag ? $"Failed (no cache):\n\n{log}" : $"Script failed:\n{ex.Message}",
-                    "PandaTools — Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    "PandaTools - Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
             MessageBox.Show(
                 diag ? $"Failed (using cache):\n\n{log}" : "GitLab unreachable — running cached version.",
-                "PandaTools — Using Cache", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                "PandaTools - Using Cache", MessageBoxButtons.OK, MessageBoxIcon.Warning);
 
             Process.Start(new ProcessStartInfo
             {
