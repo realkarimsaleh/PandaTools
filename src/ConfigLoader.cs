@@ -4,7 +4,10 @@ using System.Windows.Forms;
 
 public static class ConfigLoader
 {
-    public static readonly string ConfigDir  = Application.StartupPath;
+    public static readonly string ConfigDir  = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "PandaTools"
+    );
     public static readonly string ConfigPath = Path.Combine(ConfigDir, "config.json");
     public static readonly string FlavourDir = Path.Combine(ConfigDir, "flavours");
 
@@ -32,6 +35,7 @@ public static class ConfigLoader
     // ── Initial load ──────────────────────────────────────────────────
     public static void Load()
     {
+        Directory.CreateDirectory(ConfigDir);
         Directory.CreateDirectory(FlavourDir);
         EnsureDefaultFiles();
         lock (_lock)
@@ -143,8 +147,9 @@ public static class ConfigLoader
                 Section = "Applications", Icon = "🖥️",
                 Items = new()
                 {
-                    new() { Label = "SCCM Console",   Type = "app",
-                            Value = @"C:\Program Files (x86)\Microsoft Configuration Manager\AdminConsole\bin\Microsoft.ConfigurationManagement.exe" },                }
+                    new() { Label = "SCCM Console", Type = "app",
+                            Value = @"C:\Program Files (x86)\Microsoft Configuration Manager\AdminConsole\bin\Microsoft.ConfigurationManagement.exe" }
+                }
             },
             new()
             {
@@ -187,9 +192,9 @@ public static class ConfigLoader
         _configWatcher?.Dispose();
         _configWatcher = new FileSystemWatcher(ConfigDir)
         {
-            Filter               = "config.json",
-            NotifyFilter         = NotifyFilters.LastWrite,
-            EnableRaisingEvents  = true
+            Filter              = "config.json",
+            NotifyFilter        = NotifyFilters.LastWrite,
+            EnableRaisingEvents = true
         };
         var debounce = new System.Timers.Timer(500) { AutoReset = false };
         debounce.Elapsed += (_, _) => Reload();
@@ -219,10 +224,10 @@ public static class ConfigLoader
             if (!Http.DefaultRequestHeaders.UserAgent.Any())
                 Http.DefaultRequestHeaders.UserAgent.ParseAdd("PandaTools");
 
-            var apiBase   = cfg.UrlServer.TrimEnd('/') + "/api/v4";
-            var repoPath  = $"{cfg.FlavourRepoPath.TrimEnd('/')}/{cfg.Flavour}.json";
-            var encoded   = Uri.EscapeDataString(repoPath);
-            var metaUrl   = $"{apiBase}/projects/{cfg.FlavourProjectId}/repository/files/{encoded}?ref=main";
+            var apiBase  = cfg.UrlServer.TrimEnd('/') + "/api/v4";
+            var repoPath = $"{cfg.FlavourRepoPath.TrimEnd('/')}/{cfg.Flavour}.json";
+            var encoded  = Uri.EscapeDataString(repoPath);
+            var metaUrl  = $"{apiBase}/projects/{cfg.FlavourProjectId}/repository/files/{encoded}?ref=main";
 
             using var cts      = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             var       metaJson = await Http.GetStringAsync(metaUrl, cts.Token);
