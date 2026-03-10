@@ -1,5 +1,10 @@
 # PandaTools Changelog
 
+## [2.0.1] - 10/03/26
+### Fixed
+- Updated Syntax in Source File and also updated Languestic Errors
+- Updated Flavours
+
 ## [2.0.0] - 10/03/26
 ### Overview
 Version 2 is a major overhaul introducing the flavour system, DPAPI token encryption,
