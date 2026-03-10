@@ -1,6 +1,6 @@
 {
-  "version": "1.0",
-  "hidden": false,
+  "version": "2.0",
+  "hidden": true,
   "menu":
   [
     {
@@ -135,7 +135,7 @@
       "items":
       [
         {
-          "label": "SCCM Collection Tool",
+          "label": "SCCM Collection Membership Util",
           "type": "script",
           "projectId": 525,
           "filePath": "SCCMCollectionMembership-Utility.ps1",
@@ -148,8 +148,16 @@
       "icon": "⚡",
       "items":
       [
-        { "label": "Flush DNS",     "type": "powershell", "value": "ipconfig /flushdns" },
-        { "label": "Restart Wi-Fi", "type": "powershell", "value": "Restart-NetAdapter -Name 'Wi-Fi' -Confirm:$false" }
+        {
+          "label": "Flush DNS",
+          "type": "powershell",
+          "value": "ipconfig /flushdns"
+        },
+        { 
+          "label": "Restart Wi-Fi",
+          "type": "powershell",
+          "value": "Restart-NetAdapter -Name 'Wi-Fi' -Confirm:$false"
+        }
       ]
     }
   ]
