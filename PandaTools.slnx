@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="PandaTools.csproj" />
+  <Project Path="PandaTools.Setup/PandaTools.Setup.csproj" />
+</Solution>
