@@ -17,6 +17,7 @@ public class AppConfig
     public string TokenFile { get; set; } = "";
 
     // DPAPI-encrypted token — this is what TokenManager stores/reads
+    // PLATFORM NOTE: DPAPI is Windows-only. For macOS port replace with Keychain.
     [JsonPropertyName("token_encrypted")]
     public string TokenEncrypted { get; set; } = "";
 
@@ -48,7 +49,7 @@ public class AppConfig
         new()
         {
             Name = "Workstation Admin",
-            Username = @"Domain\YourAdminUsername",
+            Username = @"DOMAIN\Username",
             Password = ""
         }
     };
@@ -99,6 +100,7 @@ public class FlavourItem
 
     [JsonPropertyName("type")]
     public string Type { get; set; } = "";
+    // url | incognito | app | runas | script | powershell | exe
 
     [JsonPropertyName("value")]
     public string Value { get; set; } = "";

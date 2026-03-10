@@ -9,42 +9,39 @@ using System.Windows.Forms;
 
 public class SettingsWindow : Form
 {
-    private TextBox?       _urlBox;
-    private TextBox?       _keyBox;
-    private TextBox?       _tokenFileBox;
-    private TextBox?       _tokenBox;
-    private TextBox?       _browserPathBox;
-    private TextBox?       _runasUserBox;
-    private TextBox?       _runasPassBox;
-    private TextBox?       _runasNameBox;
-    private ComboBox?      _flavourCombo;
-    private ComboBox?      _browserCombo;
-    private ListBox?       _runasListBox;
-    private NumericUpDown? _pollBox;
-    private CheckBox?      _diagCheck;
-    private CheckBox?      _manualCheck;
-    private Label?         _statusLabel;
+    private TextBox?        _urlBox;
+    private TextBox?        _keyBox;
+    private TextBox?        _tokenFileBox;
+    private TextBox?        _tokenPlainBox;
+    private TextBox?        _browserPathBox;
+    private TextBox?        _runasUserBox;
+    private TextBox?        _runasPassBox;
+    private TextBox?        _runasNameBox;
+    private ComboBox?       _flavourCombo;
+    private ComboBox?       _browserCombo;
+    private ListBox?        _runasListBox;
+    private NumericUpDown?  _pollBox;
+    private NumericUpDown?  _projectIdBox;
+    private CheckBox?       _diagCheck;
+    private CheckBox?       _manualCheck;
+    private Label?          _statusLabel;
 
     private List<RunAsProfile> _runasProfiles = new();
     private int _selectedProfileIndex = -1;
 
-    // ── Layout constants ──────────────────────────────────────────────
-    // FormW = GrpL + GrpW + GrpL  →  10 + 580 + 10 = 600
-    // This ensures no empty gap on the right.
     private const int GrpL  = 10;
     private const int GrpW  = 580;
-    private const int FormW = 600;   // GrpL + GrpW + GrpL
+    private const int FormW = 600;
 
-    private const int LblL  = 8;
-    private const int LblW  = 112;
-    private const int FldL  = 124;                // LblL + LblW + 4
-    private const int FldW  = GrpW - FldL - 12;  // 580 - 124 - 12 = 444
+    private const int LblL = 8;
+    private const int LblW = 112;
+    private const int FldL = 124;
+    private const int FldW = GrpW - FldL - 12;   // 444
 
-    // Flavour row (tighter label so buttons have room)
-    private const int FlavLblL  = 6;
-    private const int FlavLblW  = 88;
-    private const int FlavFldL  = 97;             // FlavLblL + FlavLblW + 3
-    private const int FlavCmbW  = 210;
+    private const int FlavLblL = 6;
+    private const int FlavLblW = 88;
+    private const int FlavFldL = 97;
+    private const int FlavCmbW = 210;
 
     public SettingsWindow()
     {
@@ -58,7 +55,6 @@ public class SettingsWindow : Form
 
         BuildLayout();
 
-        // Height fits content exactly; width is fixed by constants above
         var lastBottom = Controls.Cast<Control>().Max(c => c.Bottom);
         ClientSize = new Size(FormW, lastBottom + 14);
     }
@@ -83,14 +79,14 @@ public class SettingsWindow : Form
         };
         pnlVersion.Controls.Add(new Label
         {
-            Text      = $"🐼  PandaTools  v{appVersion}",
+            Text      = $"🐼 PandaTools v{appVersion}",
             Left = 10, Top = 7, Width = 210, Height = 20,
             ForeColor = Color.White, BackColor = Color.Transparent,
             Font      = new Font("Segoe UI", 9f, FontStyle.Bold)
         });
         pnlVersion.Controls.Add(new Label
         {
-            Text      = $"Flavour: {cfg.Flavour}  •  v{flavourVersion}",
+            Text      = $"Flavour: {cfg.Flavour} • v{flavourVersion}",
             Left = 220, Top = 7, Width = GrpW - 230, Height = 20,
             ForeColor = Color.FromArgb(170, 170, 170), BackColor = Color.Transparent,
             Font      = new Font("Segoe UI", 9f),
@@ -100,7 +96,7 @@ public class SettingsWindow : Form
         y += 42;
 
         // ── Connection ─────────────────────────────────────────────────
-        var grpConn = MakeGroup("Connection", y, 148);
+        var grpConn = MakeGroup("Connection", y, 200);
 
         grpConn.Controls.Add(MakeLabel("GitLab Server:", LblL, 22));
         _urlBox = MakeTextBox(cfg.UrlServer, FldL, 20, FldW);
@@ -114,29 +110,67 @@ public class SettingsWindow : Form
         _tokenFileBox = MakeTextBox(cfg.TokenFile, FldL, 80, FldW);
         grpConn.Controls.Add(_tokenFileBox);
 
-        grpConn.Controls.Add(MakeLabel("Plain Token:", LblL, 112));
-        _tokenBox = MakeTextBox(cfg.Token, FldL, 110, FldW, password: true);
-        grpConn.Controls.Add(_tokenBox);
+        grpConn.Controls.Add(MakeLabel("Project ID:", LblL, 112));
+        _projectIdBox = new NumericUpDown
+        {
+            Minimum = 0, Maximum = 999999,
+            Value   = Math.Max(0, cfg.FlavourProjectId),
+            Left    = FldL, Top = 110, Width = 120,
+            Font    = new Font("Segoe UI", 9f)
+        };
+        grpConn.Controls.Add(_projectIdBox);
+        grpConn.Controls.Add(new Label
+        {
+            Text      = "GitLab project ID used for flavour polling",
+            Left = FldL + 126, Top = 113, Width = 290, Height = 16,
+            ForeColor = Color.DimGray, Font = new Font("Segoe UI", 7.5f)
+        });
+
+        grpConn.Controls.Add(MakeLabel("New Token:", LblL, 142));
+        _tokenPlainBox = MakeTextBox("", FldL, 140, FldW - 110, password: true);
+        _tokenPlainBox.PlaceholderText = "Leave blank to keep current token";
+        grpConn.Controls.Add(_tokenPlainBox);
+
+        var btnUpdateToken = MakeButton("🔑 Update Token", FldL + FldW - 108, 139, 110);
+        btnUpdateToken.BackColor = Color.FromArgb(0, 123, 255);
+        btnUpdateToken.ForeColor = Color.White;
+        btnUpdateToken.FlatStyle = FlatStyle.Flat;
+        btnUpdateToken.Click += (_, _) =>
+        {
+            var plain = _tokenPlainBox?.Text.Trim() ?? "";
+            if (string.IsNullOrWhiteSpace(plain))
+            { Status("❌ Token field is empty — nothing updated."); return; }
+            TokenManager.SaveToken(plain);
+            if (_tokenPlainBox != null) _tokenPlainBox.Text = "";
+            Status("✅ Token encrypted and saved.");
+        };
+        grpConn.Controls.Add(btnUpdateToken);
+
+        grpConn.Controls.Add(new Label
+        {
+            Text      = "💡 Token is encrypted with DPAPI (per-user, this machine only). Plain-text is never stored.",
+            Left = LblL, Top = 172, Width = GrpW - 16, Height = 16,
+            ForeColor = Color.DimGray, Font = new Font("Segoe UI", 7.5f)
+        });
 
         Controls.Add(grpConn);
-        y += 158;
+        y += 210;
 
         // ── Flavour ─────────────────────────────────────────────────────
         var grpFlavour = MakeGroup("Flavour", y, 108);
 
         grpFlavour.Controls.Add(new Label
         {
-            Text = "Active Flavour:", Left = FlavLblL, Top = 25,
-            Width = FlavLblW, Height = 20,
+            Text      = "Active Flavour:", Left = FlavLblL, Top = 25,
+            Width     = FlavLblW, Height = 20,
             TextAlign = ContentAlignment.MiddleRight,
-            Font = new Font("Segoe UI", 9f)
+            Font      = new Font("Segoe UI", 9f)
         });
 
         _flavourCombo = new ComboBox
         {
             DropDownStyle    = ComboBoxStyle.DropDownList,
-            Left             = FlavFldL, Top = 22,
-            Width            = FlavCmbW,
+            Left = FlavFldL, Top = 22, Width = FlavCmbW,
             Font             = new Font("Segoe UI", 9f),
             MaxDropDownItems = 15,
             DropDownWidth    = 300
@@ -144,13 +178,12 @@ public class SettingsWindow : Form
         RefreshFlavourCombo(cfg.Flavour);
         grpFlavour.Controls.Add(_flavourCombo);
 
-        // Buttons: sit right after combo, equal width, fill to group right edge
-        int bxStart = FlavFldL + FlavCmbW + 6;
-        int bxRemain = GrpW - bxStart - 8;  // remaining width for 3 buttons
-        int bw3 = bxRemain / 3;             // each button width
+        int bxStart  = FlavFldL + FlavCmbW + 6;
+        int bxRemain = GrpW - bxStart - 8;
+        int bw3      = bxRemain / 3;
 
-        var btnFlavourAdd    = MakeButton("+ Add",    bxStart,          21, bw3 - 2);
-        var btnFlavourRemove = MakeButton("− Remove", bxStart + bw3,    21, bw3 - 2);
+        var btnFlavourAdd    = MakeButton("+ Add",     bxStart,         21, bw3 - 2);
+        var btnFlavourRemove = MakeButton("− Remove",  bxStart + bw3,   21, bw3 - 2);
         var btnFlavourFolder = MakeButton("📂 Folder", bxStart + bw3*2, 21, bw3 - 2);
 
         btnFlavourAdd.Click += (_, _) =>
@@ -174,7 +207,7 @@ public class SettingsWindow : Form
             if (sel.Equals(ConfigLoader.AppConfig.Flavour, StringComparison.OrdinalIgnoreCase))
             { Status("❌ Cannot remove the active flavour."); return; }
             if (MessageBox.Show($"Delete flavour '{sel}'?", "Confirm",
-                    MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+                MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
             try
             {
                 var path = Path.Combine(ConfigLoader.FlavourDir, $"{sel}.json");
@@ -197,16 +230,15 @@ public class SettingsWindow : Form
         {
             Text    = "Manual mode — disable auto-updates from GitLab",
             Checked = cfg.ManualMode,
-            Left    = LblL, Top = 58,
-            Width   = GrpW - 20,
+            Left = LblL, Top = 58, Width = GrpW - 20,
             Font    = new Font("Segoe UI", 9f)
         };
         grpFlavour.Controls.Add(_manualCheck);
 
         grpFlavour.Controls.Add(new Label
         {
-            Text      = "💡  Add imports a .json from disk  •  Remove deletes the file  •  Active flavour cannot be removed",
-            Left      = LblL, Top = 84, Width = GrpW - 16, Height = 16,
+            Text      = "💡 Add imports a .json from disk • Remove deletes the file • Active flavour cannot be removed",
+            Left = LblL, Top = 84, Width = GrpW - 16, Height = 16,
             ForeColor = Color.DimGray, Font = new Font("Segoe UI", 7.5f)
         });
 
@@ -265,13 +297,13 @@ public class SettingsWindow : Form
         const int pnlLeft = 182;
         var pnlRight = new Panel
         {
-            Left   = pnlLeft, Top = 14,
+            Left = pnlLeft, Top = 14,
             Width  = GrpW - pnlLeft - 8,
             Height = 172
         };
 
         const int rFldX = 96;
-        int       rFldW = pnlRight.Width - rFldX - 2;
+        int rFldW = pnlRight.Width - rFldX - 2;
 
         pnlRight.Controls.Add(MakePanelLabel("Profile Name:", 0, 4));
         _runasNameBox = MakePanelBox(rFldX, 2, rFldW);
@@ -282,7 +314,7 @@ public class SettingsWindow : Form
         pnlRight.Controls.Add(_runasUserBox);
         pnlRight.Controls.Add(new Label
         {
-            Text = "Format: DOMAIN\\user  or  user@domain",
+            Text = "Format: DOMAIN\\user or user@domain",
             Left = rFldX, Top = 53, Width = rFldW, Height = 15,
             ForeColor = Color.DimGray, Font = new Font("Segoe UI", 7.5f)
         });
@@ -297,8 +329,8 @@ public class SettingsWindow : Form
             ForeColor = Color.DimGray, Font = new Font("Segoe UI", 7.5f)
         });
 
-        var btnAdd  = MakeButton("+ Add",    0,   112, 82);
-        var btnSave = MakeButton("💾 Save",  88,  112, 82);
+        var btnAdd  = MakeButton("+ Add",     0,   112, 82);
+        var btnSave = MakeButton("💾 Save",   88,  112, 82);
         var btnDel  = MakeButton("🗑 Delete", 176, 112, 82);
 
         btnAdd.Click += (_, _) =>
@@ -314,8 +346,8 @@ public class SettingsWindow : Form
             if (_selectedProfileIndex < 0 || _selectedProfileIndex >= _runasProfiles.Count) return;
             _runasProfiles[_selectedProfileIndex].Name     = _runasNameBox?.Text.Trim() ?? "";
             _runasProfiles[_selectedProfileIndex].Username = _runasUserBox?.Text.Trim() ?? "";
-            _runasProfiles[_selectedProfileIndex].Password = _runasPassBox?.Text        ?? "";
-            _runasListBox.Items[_selectedProfileIndex]     = _runasProfiles[_selectedProfileIndex].Name;
+            _runasProfiles[_selectedProfileIndex].Password = _runasPassBox?.Text ?? "";
+            _runasListBox.Items[_selectedProfileIndex] = _runasProfiles[_selectedProfileIndex].Name;
             Status("✅ Profile saved — click 'Save & Apply' to write to disk.");
         };
 
@@ -358,12 +390,12 @@ public class SettingsWindow : Form
         Controls.Add(grpAdv);
         y += 66;
 
-        // ── Action Buttons — 4 equal widths spanning GrpW exactly ──────
-        int btnW = (GrpW - 6) / 4;
-        var btnCheckFlavour = MakeButton("🔄 Flavour Updates", GrpL,               y, btnW);
-        var btnCheckApp     = MakeButton("⬆️ App Updates",     GrpL + btnW + 2,    y, btnW);
-        var btnSaveApply    = MakeButton("💾 Save & Apply",    GrpL + (btnW+2)*2,  y, btnW);
-        var btnClose        = MakeButton("✖ Close",            GrpL + (btnW+2)*3,  y, btnW);
+        // ── Action Buttons ─────────────────────────────────────────────
+        int btnW            = (GrpW - 6) / 4;
+        var btnCheckFlavour = MakeButton("🔄 Flavour Updates",  GrpL,              y, btnW);
+        var btnCheckApp     = MakeButton("⬆️ App Updates",      GrpL + btnW + 2,   y, btnW);
+        var btnSaveApply    = MakeButton("💾 Save & Apply",     GrpL + (btnW+2)*2, y, btnW);
+        var btnClose        = MakeButton("✖ Close",             GrpL + (btnW+2)*3, y, btnW);
 
         btnSaveApply.BackColor = Color.FromArgb(40, 167, 69);
         btnSaveApply.ForeColor = Color.White;
@@ -381,8 +413,7 @@ public class SettingsWindow : Form
         _statusLabel = new Label
         {
             Text      = "Ready",
-            Left      = GrpL, Top = y,
-            Width     = GrpW, Height = 20,
+            Left = GrpL, Top = y, Width = GrpW, Height = 20,
             ForeColor = Color.DarkBlue,
             Font      = new Font("Segoe UI", 9f)
         };
@@ -424,19 +455,17 @@ public class SettingsWindow : Form
             cfg.UrlServer          = _urlBox?.Text.Trim()          ?? cfg.UrlServer;
             cfg.KeyFile            = _keyBox?.Text.Trim()          ?? cfg.KeyFile;
             cfg.TokenFile          = _tokenFileBox?.Text.Trim()    ?? cfg.TokenFile;
-            cfg.Token              = _tokenBox?.Text.Trim()        ?? cfg.Token;
             cfg.Flavour            = (string?)_flavourCombo?.SelectedItem ?? cfg.Flavour;
             cfg.Diagnostics        = _diagCheck?.Checked           ?? cfg.Diagnostics;
             cfg.ManualMode         = _manualCheck?.Checked         ?? cfg.ManualMode;
             cfg.FlavourPollSeconds = (int?)_pollBox?.Value         ?? cfg.FlavourPollSeconds;
+            cfg.FlavourProjectId   = (int?)_projectIdBox?.Value    ?? cfg.FlavourProjectId;
             cfg.BrowserName        = (_browserCombo?.SelectedItem?.ToString() ?? "default").ToLowerInvariant();
             cfg.BrowserPath        = _browserPathBox?.Text.Trim()  ?? cfg.BrowserPath;
             cfg.RunAsProfiles      = _runasProfiles;
 
-            File.WriteAllText(ConfigLoader.ConfigPath,
-                System.Text.Json.JsonSerializer.Serialize(cfg, ConfigLoader.JsonOpts));
+            ConfigLoader.Save(cfg);
             TokenManager.Reset();
-            ConfigLoader.Reload();
             Status("✅ Settings saved and applied.");
         }
         catch (Exception ex) { Status($"❌ Save failed: {ex.Message}"); }

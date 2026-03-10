@@ -4,7 +4,7 @@ using System.Windows.Forms;
 
 public static class ConfigLoader
 {
-    public static readonly string ConfigDir  = Path.Combine(
+    public static readonly string ConfigDir = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "PandaTools"
     );
@@ -13,11 +13,11 @@ public static class ConfigLoader
 
     public static event Action? OnConfigReloaded;
 
-    private static AppConfig?     _appConfig;
+    private static AppConfig? _appConfig;
     private static FlavourConfig? _flavourConfig;
     private static readonly object _lock = new();
-    private static System.Timers.Timer?  _pollTimer;
-    private static FileSystemWatcher?    _configWatcher;
+    private static System.Timers.Timer? _pollTimer;
+    private static FileSystemWatcher? _configWatcher;
     private static string _lastHash = "";
     private static readonly HttpClient Http = new();
 
@@ -37,7 +37,17 @@ public static class ConfigLoader
     {
         Directory.CreateDirectory(ConfigDir);
         Directory.CreateDirectory(FlavourDir);
-        EnsureDefaultFiles();
+
+        // Create blank config on first-ever run
+        if (!File.Exists(ConfigPath))
+            File.WriteAllText(ConfigPath, JsonSerializer.Serialize(new AppConfig(), JsonOpts));
+
+        // Seed from exe's flavours\ folder every startup (only new files)
+        SeedFlavoursFromExeDir();
+
+        // If still nothing, drop a hidden _Template flavour
+        EnsureTemplateFlavour();
+
         lock (_lock)
         {
             _appConfig     = LoadAppConfig();
@@ -78,6 +88,13 @@ public static class ConfigLoader
         Reload();
     }
 
+    // ── Save entire AppConfig ─────────────────────────────────────────
+    public static void Save(AppConfig cfg)
+    {
+        File.WriteAllText(ConfigPath, JsonSerializer.Serialize(cfg, JsonOpts));
+        Reload();
+    }
+
     // ── Available flavours ────────────────────────────────────────────
     public static string[] GetAvailableFlavours(bool includeHidden = false)
     {
@@ -99,76 +116,92 @@ public static class ConfigLoader
             .ToArray();
     }
 
-    // ── Ensure default files on first run ─────────────────────────────
-    private static void EnsureDefaultFiles()
+    // ── Seed from exe directory on each run (only new files) ──────────
+    private static void SeedFlavoursFromExeDir()
     {
-        if (!File.Exists(ConfigPath))
-            File.WriteAllText(ConfigPath, JsonSerializer.Serialize(new AppConfig(), JsonOpts));
+        var sourceFlavours = Path.Combine(AppContext.BaseDirectory, "flavours");
+        if (!Directory.Exists(sourceFlavours)) return;
 
-        // ── LBU-DS-ServiceDesk ────────────────────────────────────────
-        WriteDefaultFlavour("LBU-DS-ServiceDesk", hidden: false, new List<FlavourSection>
+        foreach (var file in Directory.GetFiles(sourceFlavours, "*.json"))
         {
-            new()
-            {
-                Section = "Web Tools", Icon = "🌐",
-                Items = new()
-                {
-                    new() { Label = "Staff Portal",  Type = "url", Value = "https://portal.leedsbeckett.ac.uk" },
-                    new() { Label = "GitLab",         Type = "url", Value = "https://gitlab.leedsbeckett.ac.uk" },
-                    new() { Label = "Service Desk",   Type = "url", Value = "https://servicedesk.leedsbeckett.ac.uk" }
-                }
-            },
-            new()
-            {
-                Section = "GitLab Scripts", Icon = "📜",
-                Items = new()
-                {
-                    new() { Label = "Panopto Delta Informant", Type = "script", ProjectId = 522,
-                            FilePath = "Powershell/PanoptoDeltaInformant/PanoptoDeltaInformant.ps1" }
-                }
-            }
-        });
-
-        // ── LBU-DS-SupportServices ────────────────────────────────────
-        WriteDefaultFlavour("LBU-DS-SupportServices", hidden: false, new List<FlavourSection>
-        {
-            new()
-            {
-                Section = "Support Tools", Icon = "🛠️",
-                Items = new()
-                {
-                    new() { Label = "Service Desk",  Type = "url",        Value = "https://servicedesk.leedsbeckett.ac.uk" },
-                    new() { Label = "Staff Portal",  Type = "url",        Value = "https://portal.leedsbeckett.ac.uk" },
-                    new() { Label = "Flush DNS",      Type = "powershell", Value = "ipconfig /flushdns" }
-                }
-            },
-            new()
-            {
-                Section = "Applications", Icon = "🖥️",
-                Items = new()
-                {
-                    new() { Label = "SCCM Console", Type = "app",
-                            Value = @"C:\Program Files (x86)\Microsoft Configuration Manager\AdminConsole\bin\Microsoft.ConfigurationManagement.exe" }
-                }
-            },
-            new()
-            {
-                Section = "GitLab Scripts", Icon = "📜",
-                Items = new()
-                {
-                    new() { Label = "SCCM Collection Tool", Type = "script", ProjectId = 525,
-                            FilePath = "SCCMCollectionMembership-Utility.ps1" }
-                }
-            }
-        });
+            var dest = Path.Combine(FlavourDir, Path.GetFileName(file));
+            if (!File.Exists(dest))
+                File.Copy(file, dest, overwrite: false);
+        }
     }
 
-    private static void WriteDefaultFlavour(string name, bool hidden, List<FlavourSection> sections)
+    // ── Ensure _Template flavour only when no real flavours exist ─────
+    private static void EnsureTemplateFlavour()
     {
-        var path = Path.Combine(FlavourDir, $"{name}.json");
-        if (File.Exists(path)) return;   // never overwrite user edits
-        var fc = new FlavourConfig { Version = "1.0", Hidden = hidden, Menu = sections };
-        File.WriteAllText(path, JsonSerializer.Serialize(fc, JsonOpts));
+        var existingNonTemplate = Directory.GetFiles(FlavourDir, "*.json")
+            .Select(Path.GetFileNameWithoutExtension)
+            .Where(n => !string.Equals(n, "_Template", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+
+        if (existingNonTemplate.Length > 0) return;
+
+        var path = Path.Combine(FlavourDir, "_Template.json");
+        if (File.Exists(path)) return;
+
+        var template = new FlavourConfig
+        {
+            Version = "1.0",
+            Hidden  = true,
+            Menu    = new()
+            {
+                new()
+                {
+                    Section = "Web Tools",
+                    Icon    = "🌐",
+                    Items   = new()
+                    {
+                        new() { Label = "Example URL",
+                                Type  = "url",
+                                Value = "https://example.com" },
+                        new() { Label = "Example Incognito",
+                                Type  = "incognito",
+                                Value = "https://example.com" },
+                    }
+                },
+                new()
+                {
+                    Section = "Scripts",
+                    Icon    = "📜",
+                    Items   = new()
+                    {
+                        new() { Label = "Example GitLab Script",
+                                Type      = "script",
+                                ProjectId = 0,
+                                FilePath  = "Scripts/Example.ps1",
+                                Branch    = "main" },
+                        new() { Label = "Example PowerShell",
+                                Type  = "powershell",
+                                Value = "Write-Host 'Hello from PandaTools'" },
+                    }
+                },
+                new()
+                {
+                    Section = "Applications",
+                    Icon    = "🖥️",
+                    Items   = new()
+                    {
+                        new() { Label = "Example App",
+                                Type  = "app",
+                                Value = @"C:\Windows\System32\notepad.exe" },
+                        new() { Label = "Example RunAs",
+                                Type         = "runas",
+                                Value        = @"C:\Windows\System32\notepad.exe",
+                                RunAsProfile = "LBU Admin" },
+                        new() { Label = "Example Admin Elevation",
+                                Type  = "app",
+                                Value = @"C:\Windows\System32\notepad.exe",
+                                Admin = true },
+                    }
+                }
+            }
+        };
+
+        File.WriteAllText(path, JsonSerializer.Serialize(template, JsonOpts));
     }
 
     // ── File loading ──────────────────────────────────────────────────
@@ -229,10 +262,10 @@ public static class ConfigLoader
             var encoded  = Uri.EscapeDataString(repoPath);
             var metaUrl  = $"{apiBase}/projects/{cfg.FlavourProjectId}/repository/files/{encoded}?ref=main";
 
-            using var cts      = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            var       metaJson = await Http.GetStringAsync(metaUrl, cts.Token);
-            var       meta     = JsonSerializer.Deserialize<JsonElement>(metaJson);
-            var       latest   = meta.GetProperty("last_commit_id").GetString() ?? "";
+            using var cts  = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var metaJson   = await Http.GetStringAsync(metaUrl, cts.Token);
+            var meta       = JsonSerializer.Deserialize<JsonElement>(metaJson);
+            var latest     = meta.GetProperty("last_commit_id").GetString() ?? "";
 
             if (latest == _lastHash || latest == "") return;
 

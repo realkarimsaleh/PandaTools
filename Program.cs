@@ -1,6 +1,12 @@
 using System.Windows.Forms;
 
-Application.EnableVisualStyles();
-Application.SetCompatibleTextRenderingDefault(false);
-ConfigLoader.Load();
-Application.Run(new TrayContext());
+static class Program
+{
+    [STAThread]
+    static void Main()
+    {
+        Application.EnableVisualStyles();
+        Application.SetCompatibleTextRenderingDefault(false);
+        Application.Run(new TrayContext());
+    }
+}
