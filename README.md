@@ -80,23 +80,34 @@ A flavour file defines sections and items that appear in the tray menu.
 {
   "version": "1.0",
   "hidden": false,
-  "menu": [
+  "menu":
+  [
     {
       "section": "Web Tools",
       "icon": "🌐",
-      "items": [
-        { "label": "Staff Portal",   "type": "url",       "value": "https://portal.leedsbeckett.ac.uk" },
-        { "label": "GitLab Private", "type": "incognito", "value": "https://gitlab.leedsbeckett.ac.uk" }
+      "items":
+      [
+        {
+          "label": "Staff Site",
+          "type": "url",
+          "value": "https://www.leedsbeckett.ac.uk/staffsite/"
+        },
+        {
+          "label": "Google (incognito)",
+          "type": "incognito",
+          "value": "https://google.com/"
+        }
       ]
     },
     {
       "section": "Scripts",
       "icon": "📜",
-      "items": [
+      "items":
+      [
         {
           "label": "My Script",
           "type": "script",
-          "projectId": 522,
+          "projectId": 000,
           "filePath": "Scripts/MyScript.ps1",
           "branch": "main"
         }
@@ -105,10 +116,24 @@ A flavour file defines sections and items that appear in the tray menu.
     {
       "section": "Applications",
       "icon": "🖥️",
-      "items": [
-        { "label": "Notepad",       "type": "app",        "value": "C:\\Windows\\System32\\notepad.exe" },
-        { "label": "Admin Console", "type": "runas",      "value": "C:\\Tools\\console.exe", "runas_profile": "LBU Admin" },
-        { "label": "Flush DNS",     "type": "powershell", "value": "ipconfig /flushdns" }
+      "items":
+      [
+        {
+          "label": "Notepad",
+          "type": "app",
+          "value": "C:\\Windows\\System32\\notepad.exe"
+        },
+        {
+          "label": "LAPS GUI (Workstation Admin)",
+          "type": "runas",
+          "value": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\IT Services Technicians Software\\LAPS GUI.lnk",
+          "runas_profile": "Workstation Admin"
+        },
+        {
+          "label": "Flush DNS",
+          "type": "powershell",
+          "value": "ipconfig /flushdns"
+        }
       ]
     }
   ]
@@ -117,15 +142,15 @@ A flavour file defines sections and items that appear in the tray menu.
 
 ### Item Types
 
-| Type | Description |
-|---|---|
-| `url` | Opens URL in default browser |
-| `incognito` | Opens URL in private/incognito browser window |
-| `app` | Launches a local application (use `admin: true` for UAC elevation) |
-| `runas` | Launches as a different domain user via a named RunAs profile |
-| `powershell` | Runs an inline PowerShell command |
-| `script` | Fetches and runs a `.ps1` from GitLab (cached by commit hash) |
-| `exe` | Direct `.exe` launch (legacy - prefer `app`) |
+| Type         | Description                                                        |
+|--------------|--------------------------------------------------------------------|
+| `url`        | Opens URL in default browser                                       |
+| `incognito`  | Opens URL in private/incognito browser window                      |
+| `app`        | Launches a local application (use `admin: true` for UAC elevation) |
+| `runas`      | Launches as a different domain user via a named RunAs profile      |
+| `powershell` | Runs an inline PowerShell command                                  |
+| `script`     | Fetches and runs a `.ps1` from GitLab (cached by commit hash)      |
+| `exe`        | Direct `.exe` launch (legacy - prefer `app`)                       |
 
 ---
 
@@ -133,16 +158,16 @@ A flavour file defines sections and items that appear in the tray menu.
 
 Access via **right-click → Settings**.
 
-| Setting | Description |
-|---|---|
-| GitLab Server | Base URL of your GitLab instance |
-| Project ID | GitLab project ID used for flavour polling |
-| Update Token | Enter a new token to re-encrypt and save |
-| Active Flavour | Switch between available flavour JSON files |
-| Manual Mode | Disables automatic GitLab flavour polling |
-| Poll Interval | How often (seconds) to check GitLab for flavour updates |
-| RunAs Profiles | Named credential profiles used by `runas` menu items |
-| Private Browser | Browser to use for `incognito` type items |
+| Setting         | Description                                             |
+|-----------------|---------------------------------------------------------|
+| GitLab Server   | Base URL of your GitLab instance                        |
+| Project ID      | GitLab project ID used for flavour polling              |
+| Update Token    | Enter a new token to re-encrypt and save                |
+| Active Flavour  | Switch between available flavour JSON files             |
+| Manual Mode     | Disables automatic GitLab flavour polling               |
+| Poll Interval   | How often (seconds) to check GitLab for flavour updates |
+| RunAs Profiles  | Named credential profiles used by `runas` menu items    |
+| Private Browser | Browser to use for `incognito` type items               |
 
 ---
 
