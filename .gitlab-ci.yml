@@ -1,0 +1,75 @@
+stages:
+  - build
+  - release
+
+variables:
+  APP_VERSION: "1.0.0"
+  PROJECT_NAME: "PandaTools"
+
+build:
+  stage: build
+  tags:
+    - windows
+  image: mcr.microsoft.com/dotnet/sdk:10.0
+  script:
+    # 1. Publish main app
+    - dotnet restore PandaTools/PandaTools.csproj
+    - dotnet publish PandaTools/PandaTools.csproj
+        --configuration Release
+        --runtime win-x64
+        --self-contained true
+        -p:PublishSingleFile=true
+        -p:IncludeNativeLibrariesForSelfExtract=true
+        -p:DebugType=none
+        -p:DebugSymbols=false
+        -p:Version=$APP_VERSION
+        --output ./payload_staging
+
+    # 2. Zip the payload so the installer can embed it
+    - apt-get update -qq && apt-get install -y zip
+    - mkdir -p PandaTools.Setup/Payload
+    - cd payload_staging && zip -r ../PandaTools.Setup/Payload/payload.zip . && cd ..
+
+    # 3. Build the installer exe (embeds payload.zip)
+    - dotnet restore PandaTools.Setup/PandaTools.Setup.csproj
+    - dotnet publish PandaTools.Setup/PandaTools.Setup.csproj
+        --configuration Release
+        --runtime win-x64
+        --self-contained true
+        -p:PublishSingleFile=true
+        -p:IncludeNativeLibrariesForSelfExtract=true
+        -p:DebugType=none
+        -p:DebugSymbols=false
+        -p:Version=$APP_VERSION
+        --output ./installer_out
+
+  artifacts:
+    name: "$PROJECT_NAME-Setup-$CI_COMMIT_TAG"
+    paths:
+      - installer_out/PandaToolsSetup.exe
+    expire_in: 90 days
+  rules:
+    - if: $CI_COMMIT_TAG
+
+release:
+  stage: release
+  tags:
+    - windows
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  needs:
+    - job: build
+      artifacts: true
+  script:
+    - NOTES=$(awk '/^## \[/{if(found) exit; found=1} found{print}' CHANGELOG.md)
+    - echo "$NOTES" > release_notes.txt
+  release:
+    tag_name:    $CI_COMMIT_TAG
+    name:        "$PROJECT_NAME $CI_COMMIT_TAG"
+    description: "./release_notes.txt"
+    assets:
+      links:
+        - name:      "PandaToolsSetup.exe"
+          url:       "$CI_PROJECT_URL/-/jobs/artifacts/$CI_COMMIT_TAG/raw/installer_out/PandaToolsSetup.exe?job=build"
+          link_type: package
+  rules:
+    - if: $CI_COMMIT_TAG
