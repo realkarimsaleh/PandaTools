@@ -75,7 +75,7 @@ public class TrayContext : ApplicationContext
             Text =
                 "Enter your GitLab Personal Access Token to continue.\r\n" +
                 "It will be encrypted with Windows DPAPI and stored securely\r\n" +
-                "on this machine — it is never saved as plain text.",
+                "on this machine - it is never saved as plain text.",
             Left = 16, Top = 56, Width = 460, Height = 58,
             Font      = new Font("Segoe UI", 9f),
             ForeColor = Color.FromArgb(60, 60, 60)

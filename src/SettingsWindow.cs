@@ -139,7 +139,7 @@ public class SettingsWindow : Form
         {
             var plain = _tokenPlainBox?.Text.Trim() ?? "";
             if (string.IsNullOrWhiteSpace(plain))
-            { Status("❌ Token field is empty — nothing updated."); return; }
+            { Status("❌ Token field is empty - nothing updated."); return; }
             TokenManager.SaveToken(plain);
             if (_tokenPlainBox != null) _tokenPlainBox.Text = "";
             Status("✅ Token encrypted and saved.");
@@ -228,7 +228,7 @@ public class SettingsWindow : Form
 
         _manualCheck = new CheckBox
         {
-            Text    = "Manual mode — disable auto-updates from GitLab",
+            Text    = "Manual mode - disable auto-updates from GitLab",
             Checked = cfg.ManualMode,
             Left = LblL, Top = 58, Width = GrpW - 20,
             Font    = new Font("Segoe UI", 9f)
@@ -348,13 +348,13 @@ public class SettingsWindow : Form
             _runasProfiles[_selectedProfileIndex].Username = _runasUserBox?.Text.Trim() ?? "";
             _runasProfiles[_selectedProfileIndex].Password = _runasPassBox?.Text ?? "";
             _runasListBox.Items[_selectedProfileIndex] = _runasProfiles[_selectedProfileIndex].Name;
-            Status("✅ Profile saved — click 'Save & Apply' to write to disk.");
+            Status("✅ Profile saved - click 'Save & Apply' to write to disk.");
         };
 
         btnDel.Click += (_, _) =>
         {
             if (_selectedProfileIndex < 0 || _runasProfiles.Count <= 1)
-            { Status("❌ Cannot delete — at least one profile required."); return; }
+            { Status("❌ Cannot delete - at least one profile required."); return; }
             _runasProfiles.RemoveAt(_selectedProfileIndex);
             _runasListBox.Items.RemoveAt(_selectedProfileIndex);
             if (_runasListBox.Items.Count > 0)

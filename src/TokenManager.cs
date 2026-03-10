@@ -26,7 +26,7 @@ public static class TokenManager
                 _cachedToken = Encoding.UTF8.GetString(plain);
                 return _cachedToken;
             }
-            catch { /* corrupted or wrong user — fall through */ }
+            catch { /* corrupted or wrong user - fall through */ }
         }
 
         // Legacy plain-text keyFile/tokenFile path (kept for migration)

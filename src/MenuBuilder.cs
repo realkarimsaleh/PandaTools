@@ -166,7 +166,7 @@ public static class MenuBuilder
 
         if (value.StartsWith("\""))
         {
-            // Quoted exe — find closing quote
+            // Quoted exe - find closing quote
             int close = value.IndexOf('"', 1);
             if (close < 0)
             {
@@ -181,7 +181,7 @@ public static class MenuBuilder
         }
         else
         {
-            // Unquoted — walk each space and check if the left portion
+            // Unquoted - walk each space and check if the left portion
             // is an existing file on disk. Handles paths like:
             //   C:\Program Files (x86)\App\app.exe HOSTNAME
             //   C:\ProgramData\Microsoft\Windows\Start Menu\Programs\App.lnk
@@ -208,7 +208,7 @@ public static class MenuBuilder
                 searchFrom = space + 1;
             }
 
-            // No file found by walking — treat whole value as the exe
+            // No file found by walking - treat whole value as the exe
             // (handles bare names like "notepad.exe" or UNC paths)
             if (!found)
             {
@@ -292,7 +292,7 @@ public static class MenuBuilder
         }
         catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
         {
-            // ERROR_CANCELLED — silent
+            // ERROR_CANCELLED - silent
         }
         catch (Exception ex)
         {

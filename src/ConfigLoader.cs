@@ -155,12 +155,24 @@ public static class ConfigLoader
                     Icon    = "🌐",
                     Items   = new()
                     {
-                        new() { Label = "Example URL",
-                                Type  = "url",
-                                Value = "https://example.com" },
-                        new() { Label = "Example Incognito",
-                                Type  = "incognito",
-                                Value = "https://example.com" },
+                        new()
+                        {
+                            Label = "Staff Site",
+                            Type  = "url",
+                            Value = "https://www.leedsbeckett.ac.uk/staffsite/"
+                        },
+                        new()
+                        {
+                            Label = "ivanti",
+                            Type  = "url",
+                            Value = "https://leedsbeckett.saasiteu.com"
+                        },
+                        new()
+                        {
+                            Label = "Example Incognito",
+                            Type  = "incognito",
+                            Value = "https://example.com"
+                        },
                     }
                 },
                 new()
@@ -169,14 +181,20 @@ public static class ConfigLoader
                     Icon    = "📜",
                     Items   = new()
                     {
-                        new() { Label = "Example GitLab Script",
-                                Type      = "script",
-                                ProjectId = 0,
-                                FilePath  = "Scripts/Example.ps1",
-                                Branch    = "main" },
-                        new() { Label = "Example PowerShell",
-                                Type  = "powershell",
-                                Value = "Write-Host 'Hello from PandaTools'" },
+                        new()
+                        {
+                            Label = "Example GitLab Script",
+                            Type      = "script",
+                            ProjectId = 0,
+                            FilePath  = "Scripts/Example.ps1",
+                            Branch    = "main"
+                        },
+                        new()
+                        {
+                            Label = "Example PowerShell",
+                            Type  = "powershell",
+                            Value = "Write-Host 'Hello from PandaTools'"
+                        },
                     }
                 },
                 new()
@@ -185,17 +203,26 @@ public static class ConfigLoader
                     Icon    = "🖥️",
                     Items   = new()
                     {
-                        new() { Label = "Example App",
-                                Type  = "app",
-                                Value = @"C:\Windows\System32\notepad.exe" },
-                        new() { Label = "Example RunAs",
-                                Type         = "runas",
-                                Value        = @"C:\Windows\System32\notepad.exe",
-                                RunAsProfile = "LBU Admin" },
-                        new() { Label = "Example Admin Elevation",
-                                Type  = "app",
-                                Value = @"C:\Windows\System32\notepad.exe",
-                                Admin = true },
+                        new()
+                        {
+                            Label = "NotePad",
+                            Type  = "app",
+                            Value = @"C:\Windows\System32\notepad.exe"
+                        },
+                        new()
+                        {
+                            Label        = "NotPad (RunAs)",
+                            Type         = "runas",
+                            Value        = @"C:\Windows\System32\notepad.exe",
+                            RunAsProfile = "Workstation Admin"
+                        },
+                        new()
+                        {
+                            Label = "NotePad (UAC)",
+                            Type  = "app",
+                            Value = @"C:\Windows\System32\notepad.exe",
+                            Admin = true
+                        },
                     }
                 }
             }
@@ -275,6 +302,6 @@ public static class ConfigLoader
             _lastHash = latest;
             Reload();
         }
-        catch { /* off-network or not configured — fail silently */ }
+        catch { /* off-network or not configured - fail silently */ }
     }
 }

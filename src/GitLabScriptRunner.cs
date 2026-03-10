@@ -55,7 +55,7 @@ public static class GitLabScriptRunner
                 var isUpdate = File.Exists(cachedScript) && local != "";
                 MessageBox.Show(
                     isUpdate
-                        ? $"{Path.GetFileName(filePath)} has been updated — fetching latest version."
+                        ? $"{Path.GetFileName(filePath)} has been updated - fetching latest version."
                         : $"{Path.GetFileName(filePath)} is being cached for the first time.",
                     "PandaTools", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
@@ -64,7 +64,7 @@ public static class GitLabScriptRunner
                 await File.WriteAllTextAsync(cachedHash, latest);
                 Log("Downloaded and cached successfully.");
             }
-            else { Log("Hash matches — using cached version."); }
+            else { Log("Hash matches - using cached version."); }
 
             if (diag)
                 MessageBox.Show($"Diagnostic log:\n\n{log}", "PandaTools Debug",
@@ -91,7 +91,7 @@ public static class GitLabScriptRunner
             }
 
             MessageBox.Show(
-                diag ? $"Failed (using cache):\n\n{log}" : "GitLab unreachable — running cached version.",
+                diag ? $"Failed (using cache):\n\n{log}" : "GitLab unreachable - running cached version.",
                 "PandaTools - Using Cache", MessageBoxButtons.OK, MessageBoxIcon.Warning);
 
             Process.Start(new ProcessStartInfo

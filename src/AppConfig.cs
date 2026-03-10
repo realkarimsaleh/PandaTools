@@ -16,7 +16,7 @@ public class AppConfig
     [JsonPropertyName("tokenFile")]
     public string TokenFile { get; set; } = "";
 
-    // DPAPI-encrypted token — this is what TokenManager stores/reads
+    // DPAPI-encrypted token - this is what TokenManager stores/reads
     // PLATFORM NOTE: DPAPI is Windows-only. For macOS port replace with Keychain.
     [JsonPropertyName("token_encrypted")]
     public string TokenEncrypted { get; set; } = "";
@@ -42,7 +42,7 @@ public class AppConfig
     [JsonPropertyName("browser_path")]
     public string BrowserPath { get; set; } = "";
 
-    // ── Default RunAs profiles — edit these before compiling ──────────
+    // ── Default RunAs profiles - edit these before compiling ──────────
     [JsonPropertyName("runas_profiles")]
     public List<RunAsProfile> RunAsProfiles { get; set; } = new()
     {
