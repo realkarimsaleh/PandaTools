@@ -9,12 +9,10 @@ variables:
 build:
   stage: build
   tags:
-    - windows          # your Windows shell runner tag
+    - windows
   script:
-    # Ensure dotnet is on PATH for the runner service
     - $env:PATH = "C:\Program Files\dotnet;$env:PATH"
 
-    # 1. Publish main app (.csproj is in repo root, not PandaTools/)
     - dotnet restore PandaTools.csproj
     - dotnet publish PandaTools.csproj `
         --configuration Release `
@@ -27,12 +25,10 @@ build:
         -p:Version=$env:APP_VERSION `
         --output ./payload_staging
 
-    # 2. Zip the payload so the installer can embed it (PowerShell Compress-Archive on Windows)
     - if (Test-Path "PandaTools.Setup/Payload") { Remove-Item "PandaTools.Setup/Payload" -Recurse -Force }
     - New-Item -ItemType Directory -Path "PandaTools.Setup/Payload" | Out-Null
     - Compress-Archive -Path "./payload_staging/*" -DestinationPath "./PandaTools.Setup/Payload/payload.zip" -Force
 
-    # 3. Build the installer exe (embeds payload.zip)
     - dotnet restore PandaTools.Setup/PandaTools.Setup.csproj
     - dotnet publish PandaTools.Setup/PandaTools.Setup.csproj `
         --configuration Release `
@@ -45,10 +41,12 @@ build:
         -p:Version=$env:APP_VERSION `
         --output ./installer_out
 
+    - Move-Item -Path "./installer_out/PandaToolsSetup.exe" -Destination "./PandaToolsSetup-$($env:CI_COMMIT_TAG).exe" -Force
+
   artifacts:
-    name: "$PROJECT_NAME-Setup-$CI_COMMIT_TAG"
+    name: "${PROJECT_NAME}-Setup-${CI_COMMIT_TAG}"
     paths:
-      - installer_out/PandaToolsSetup.exe
+      - PandaToolsSetup-v*.exe
     expire_in: 90 days
   rules:
     - if: $CI_COMMIT_TAG
@@ -62,6 +60,10 @@ release:
       artifacts: true
   script:
     - |
+      $headers = @{ "PRIVATE-TOKEN" = $env:GITLAB_API_TOKEN }
+      $apiBase = "$env:CI_API_V4_URL/projects/$env:CI_PROJECT_ID"
+
+      # Parse CHANGELOG.md for latest version notes
       $lines = Get-Content CHANGELOG.md
       $capture = $false
       $notes = @()
@@ -72,15 +74,45 @@ release:
         }
         if ($capture) { $notes += $line }
       }
-      $notes | Set-Content release_notes.txt
-  release:
-    tag_name:    $CI_COMMIT_TAG
-    name:        "$PROJECT_NAME $CI_COMMIT_TAG"
-    description: "./release_notes.txt"
-    assets:
-      links:
-        - name:      "PandaToolsSetup.exe"
-          url:       "$CI_PROJECT_URL/-/jobs/artifacts/$CI_COMMIT_TAG/raw/installer_out/PandaToolsSetup.exe?job=build"
-          link_type: package
+      $releaseNotes = ($notes -join "`n").Trim()
+      if (-not $releaseNotes) { $releaseNotes = "Release $env:CI_COMMIT_TAG" }
+
+      # Upload the exe to GitLab project uploads
+      $exePath = "PandaToolsSetup-$($env:CI_COMMIT_TAG).exe"
+      $client = [System.Net.Http.HttpClient]::new()
+      $client.DefaultRequestHeaders.Add("PRIVATE-TOKEN", $env:GITLAB_API_TOKEN)
+      $fs = [System.IO.File]::OpenRead((Resolve-Path $exePath))
+      $sc = [System.Net.Http.StreamContent]::new($fs)
+      $mp = [System.Net.Http.MultipartFormDataContent]::new()
+      $mp.Add($sc, "file", $exePath)
+      $resp = $client.PostAsync("$apiBase/uploads", $mp).GetAwaiter().GetResult()
+      $upload = $resp.Content.ReadAsStringAsync().GetAwaiter().GetResult() | ConvertFrom-Json
+      $exeUrl = "$env:CI_PROJECT_URL$($upload.full_path)"
+      $fs.Close()
+      $client.Dispose()
+      Write-Host "Uploaded: $exeUrl"
+
+      # Create the release with the exe as a downloadable asset
+      $payload = @{
+        tag_name    = $env:CI_COMMIT_TAG
+        name        = "PandaTools $env:CI_COMMIT_TAG"
+        description = $releaseNotes
+        assets      = @{
+          links = @(@{
+            name      = "PandaToolsSetup-$($env:CI_COMMIT_TAG).exe"
+            url       = $exeUrl
+            link_type = "package"
+          })
+        }
+      } | ConvertTo-Json -Depth 5
+
+      Invoke-RestMethod `
+        -Uri         "$apiBase/releases" `
+        -Method      Post `
+        -Headers     $headers `
+        -Body        $payload `
+        -ContentType "application/json"
+
+      Write-Host "Release $env:CI_COMMIT_TAG created successfully."
   rules:
     - if: $CI_COMMIT_TAG
