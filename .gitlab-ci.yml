@@ -9,38 +9,40 @@ variables:
 build:
   stage: build
   tags:
-    - windows
-  image: mcr.microsoft.com/dotnet/sdk:10.0
+    - windows          # your Windows shell runner tag
   script:
-    # 1. Publish main app
-    - dotnet restore PandaTools/PandaTools.csproj
-    - dotnet publish PandaTools/PandaTools.csproj
-        --configuration Release
-        --runtime win-x64
-        --self-contained true
-        -p:PublishSingleFile=true
-        -p:IncludeNativeLibrariesForSelfExtract=true
-        -p:DebugType=none
-        -p:DebugSymbols=false
-        -p:Version=$APP_VERSION
+    # Ensure dotnet is on PATH for the runner service
+    - $env:PATH = "C:\Program Files\dotnet;$env:PATH"
+
+    # 1. Publish main app (.csproj is in repo root, not PandaTools/)
+    - dotnet restore PandaTools.csproj
+    - dotnet publish PandaTools.csproj `
+        --configuration Release `
+        --runtime win-x64 `
+        --self-contained true `
+        -p:PublishSingleFile=true `
+        -p:IncludeNativeLibrariesForSelfExtract=true `
+        -p:DebugType=none `
+        -p:DebugSymbols=false `
+        -p:Version=$env:APP_VERSION `
         --output ./payload_staging
 
-    # 2. Zip the payload so the installer can embed it
-    - apt-get update -qq && apt-get install -y zip
-    - mkdir -p PandaTools.Setup/Payload
-    - cd payload_staging && zip -r ../PandaTools.Setup/Payload/payload.zip . && cd ..
+    # 2. Zip the payload so the installer can embed it (PowerShell Compress-Archive on Windows)
+    - if (Test-Path "PandaTools.Setup/Payload") { Remove-Item "PandaTools.Setup/Payload" -Recurse -Force }
+    - New-Item -ItemType Directory -Path "PandaTools.Setup/Payload" | Out-Null
+    - Compress-Archive -Path "./payload_staging/*" -DestinationPath "./PandaTools.Setup/Payload/payload.zip" -Force
 
     # 3. Build the installer exe (embeds payload.zip)
     - dotnet restore PandaTools.Setup/PandaTools.Setup.csproj
-    - dotnet publish PandaTools.Setup/PandaTools.Setup.csproj
-        --configuration Release
-        --runtime win-x64
-        --self-contained true
-        -p:PublishSingleFile=true
-        -p:IncludeNativeLibrariesForSelfExtract=true
-        -p:DebugType=none
-        -p:DebugSymbols=false
-        -p:Version=$APP_VERSION
+    - dotnet publish PandaTools.Setup/PandaTools.Setup.csproj `
+        --configuration Release `
+        --runtime win-x64 `
+        --self-contained true `
+        -p:PublishSingleFile=true `
+        -p:IncludeNativeLibrariesForSelfExtract=true `
+        -p:DebugType=none `
+        -p:DebugSymbols=false `
+        -p:Version=$env:APP_VERSION `
         --output ./installer_out
 
   artifacts:
@@ -55,13 +57,22 @@ release:
   stage: release
   tags:
     - windows
-  image: registry.gitlab.com/gitlab-org/release-cli:latest
   needs:
     - job: build
       artifacts: true
   script:
-    - NOTES=$(awk '/^## \[/{if(found) exit; found=1} found{print}' CHANGELOG.md)
-    - echo "$NOTES" > release_notes.txt
+    - |
+      $lines = Get-Content CHANGELOG.md
+      $capture = $false
+      $notes = @()
+      foreach ($line in $lines) {
+        if ($line -match '^## \[') {
+          if ($capture) { break }
+          $capture = $true
+        }
+        if ($capture) { $notes += $line }
+      }
+      $notes | Set-Content release_notes.txt
   release:
     tag_name:    $CI_COMMIT_TAG
     name:        "$PROJECT_NAME $CI_COMMIT_TAG"
