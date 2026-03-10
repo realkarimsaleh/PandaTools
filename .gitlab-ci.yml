@@ -95,7 +95,7 @@ release:
       }
       Write-Host "Found exe: $exeName ($((Get-Item $exeName).Length) bytes)"
 
-      # Upload via Generic Packages API (supports large files)
+      # Upload via Generic Packages API (no file size limit)
       $uploadUrl = "$apiBase/packages/generic/$packageName/$version/$exeName"
       Write-Host "Uploading to: $uploadUrl"
 
@@ -111,16 +111,25 @@ release:
       $client.Dispose()
 
       Write-Host "Upload status: $($resp.StatusCode)"
-      Write-Host "Upload response: $body"
-
       if (-not $resp.IsSuccessStatusCode) {
-        throw "Upload failed: $($resp.StatusCode)"
+        throw "Upload failed: $($resp.StatusCode) - $body"
       }
 
-      # Direct download URL for the release asset link
       $exeUrl = "$apiBase/packages/generic/$packageName/$version/$exeName"
 
-      # Create the release
+      # Delete existing release if present (handles reruns on the same tag)
+      try {
+        Invoke-RestMethod `
+          -Uri     "$apiBase/releases/$($env:CI_COMMIT_TAG)" `
+          -Method  Delete `
+          -Headers $headers `
+          -ErrorAction Stop
+        Write-Host "Deleted existing release $env:CI_COMMIT_TAG"
+      } catch {
+        Write-Host "No existing release to delete — continuing"
+      }
+
+      # Create the release with exe linked from package registry
       $payload = @{
         tag_name    = $env:CI_COMMIT_TAG
         name        = "PandaTools $env:CI_COMMIT_TAG"
