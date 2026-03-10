@@ -9,14 +9,16 @@ public class AppConfig
     [JsonPropertyName("flavour")]
     public string Flavour { get; set; } = "LBU-DS-ServiceDesk";
 
+    // Legacy key/token file fields retained for backwards compat
     [JsonPropertyName("keyFile")]
-    public string KeyFile { get; set; } = @"C:\Windows\Build\Sync-Gitlab\K_Sync-Gitlab.txt";
+    public string KeyFile { get; set; } = "";
 
     [JsonPropertyName("tokenFile")]
-    public string TokenFile { get; set; } = @"C:\Windows\Build\Sync-Gitlab\C_Sync-Gitlab.txt";
+    public string TokenFile { get; set; } = "";
 
-    [JsonPropertyName("token")]
-    public string Token { get; set; } = "";
+    // DPAPI-encrypted token — this is what TokenManager stores/reads
+    [JsonPropertyName("token_encrypted")]
+    public string TokenEncrypted { get; set; } = "";
 
     [JsonPropertyName("diagnostics")]
     public bool Diagnostics { get; set; } = false;
@@ -34,15 +36,21 @@ public class AppConfig
     public int FlavourPollSeconds { get; set; } = 300;
 
     [JsonPropertyName("browser_name")]
-    public string BrowserName { get; set; } = "default"; // default | chrome | edge | firefox | brave | custom
+    public string BrowserName { get; set; } = "default";
 
     [JsonPropertyName("browser_path")]
     public string BrowserPath { get; set; } = "";
 
+    // ── Default RunAs profiles — edit these before compiling ──────────
     [JsonPropertyName("runas_profiles")]
     public List<RunAsProfile> RunAsProfiles { get; set; } = new()
     {
-        new() { Name = "Default Admin", Username = "", Password = "" }
+        new()
+        {
+            Name = "Workstation Admin",
+            Username = @"Domain\YourAdminUsername",
+            Password = ""
+        }
     };
 }
 
@@ -91,7 +99,6 @@ public class FlavourItem
 
     [JsonPropertyName("type")]
     public string Type { get; set; } = "";
-    // url | incognito | app | runas | script | powershell | exe
 
     [JsonPropertyName("value")]
     public string Value { get; set; } = "";
@@ -101,7 +108,6 @@ public class FlavourItem
 
     [JsonPropertyName("runas_profile")]
     public string RunAsProfile { get; set; } = "";
-    // Matches RunAsProfile.Name in AppConfig.RunAsProfiles  
 
     [JsonPropertyName("admin")]
     public bool Admin { get; set; } = false;
