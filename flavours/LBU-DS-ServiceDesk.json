@@ -1,5 +1,5 @@
 {
-  "version": "1.0",
+  "version": "2.1",
   "hidden": false,
   "menu":
   [
@@ -180,7 +180,7 @@
       "items":
       [
         {
-          "label": "SCCM Collection Tool",
+          "label": "SCCM Collection Membership Util",
           "type": "script",
           "projectId": 525,
           "filePath": "SCCMCollectionMembership-Utility.ps1",
