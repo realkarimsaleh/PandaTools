@@ -11,7 +11,7 @@ using Microsoft.Win32;
 public class InstallerForm : Form
 {
     private const string AppName   = "PandaTools";
-    private const string Publisher = "LBU-ITSRK";
+    private const string Publisher = "Karim Saleh";
 
     private static readonly string AppVersion =
         Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0";
