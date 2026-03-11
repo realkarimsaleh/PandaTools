@@ -18,12 +18,14 @@ public class SettingsWindow : Form
     private TextBox?       _runasUserBox;
     private TextBox?       _runasPassBox;
     private TextBox?       _runasNameBox;
+    private TextBox?       _appRepoPathBox;
     private ComboBox?      _flavourCombo;
     private ComboBox?      _browserCombo;
     private ComboBox?      _urlBrowserCombo;
     private ListBox?       _runasListBox;
     private NumericUpDown? _pollBox;
     private NumericUpDown? _projectIdBox;
+    private NumericUpDown? _appProjectIdBox;
     private CheckBox?      _diagCheck;
     private CheckBox?      _manualCheck;
     private Label?         _statusLabel;
@@ -165,7 +167,7 @@ public class SettingsWindow : Form
         {
             Text      = "Active Flavour:", Left = FlavLblL, Top = 25,
             Width     = FlavLblW, Height = 20,
-            TextAlign = ContentAlignment.MiddleRight,
+            TextAlign = ContentAlignment.MiddleLeft,
             Font      = new Font("Segoe UI", 9f)
         });
 
@@ -248,9 +250,9 @@ public class SettingsWindow : Form
         y += 118;
 
         // ── Browser ────────────────────────────────────────────────────
-        var grpBrowser = MakeGroup("🌐 Browser", y, 134);
+        var grpBrowser = MakeGroup("🌐 Browser", y, 148);
 
-        // Row 1 — Default browser (url type items)
+        // Row 1 - Default browser (url type items)
         grpBrowser.Controls.Add(MakeLabel("Default:", LblL, 22));
         _urlBrowserCombo = new ComboBox
         {
@@ -284,16 +286,16 @@ public class SettingsWindow : Form
         // Divider
         grpBrowser.Controls.Add(new Panel
         {
-            Left = LblL, Top = 74, Width = GrpW - 20, Height = 1,
+            Left = LblL, Top = 76, Width = GrpW - 20, Height = 1,
             BackColor = Color.FromArgb(220, 220, 220)
         });
 
-        // Row 2 — Incognito browser (incognito type items)
-        grpBrowser.Controls.Add(MakeLabel("Incognito:", LblL, 84));
+        // Row 2 - Incognito browser (incognito type items)
+        grpBrowser.Controls.Add(MakeLabel("Incognito:", LblL, 86));
         _browserCombo = new ComboBox
         {
             DropDownStyle = ComboBoxStyle.DropDownList,
-            Left = FldL, Top = 82, Width = 165,
+            Left = FldL, Top = 84, Width = 165,
             Font = new Font("Segoe UI", 9f)
         };
         _browserCombo.Items.AddRange(new object[] { "Default", "Chrome", "Edge", "Firefox", "Brave", "Custom" });
@@ -303,7 +305,7 @@ public class SettingsWindow : Form
         if (_browserCombo.SelectedIndex < 0) _browserCombo.SelectedIndex = 0;
         grpBrowser.Controls.Add(_browserCombo);
 
-        var btnBrowseIncognito = MakeButton("📁 Browse...", FldL + 171, 81, 100);
+        var btnBrowseIncognito = MakeButton("📁 Browse...", FldL + 171, 83, 100);
         btnBrowseIncognito.Click += (_, _) =>
         {
             using var ofd = new OpenFileDialog { Filter = "Executables (*.exe)|*.exe", Title = "Select browser .exe" };
@@ -315,12 +317,12 @@ public class SettingsWindow : Form
         };
         grpBrowser.Controls.Add(btnBrowseIncognito);
 
-        grpBrowser.Controls.Add(MakeLabel("Custom Path:", LblL, 112));
-        _browserPathBox = MakeTextBox(cfg.BrowserPath, FldL, 110, FldW);
+        grpBrowser.Controls.Add(MakeLabel("Custom Path:", LblL, 116));
+        _browserPathBox = MakeTextBox(cfg.BrowserPath, FldL, 114, FldW);
         grpBrowser.Controls.Add(_browserPathBox);
 
         Controls.Add(grpBrowser);
-        y += 144;
+        y += 158;
 
         // ── RunAs Profiles ─────────────────────────────────────────────
         var grpRunAs = MakeGroup("👤 RunAs Profiles", y, 188);
@@ -370,10 +372,9 @@ public class SettingsWindow : Form
             ForeColor = Color.DimGray, Font = new Font("Segoe UI", 7.5f)
         });
 
-        // Buttons aligned to password box (start at rFldX, span rFldW)
         int rbw = (rFldW - 4) / 3;
-        var btnAdd  = MakeButton("+ Add",     rFldX,           112, rbw);
-        var btnSave = MakeButton("💾 Save",   rFldX + rbw + 2, 112, rbw);
+        var btnAdd  = MakeButton("+ Add",     rFldX,               112, rbw);
+        var btnSave = MakeButton("💾 Save",   rFldX + rbw + 2,     112, rbw);
         var btnDel  = MakeButton("🗑 Delete", rFldX + rbw * 2 + 4, 112, rbw);
 
         btnAdd.Click += (_, _) =>
@@ -410,7 +411,7 @@ public class SettingsWindow : Form
         y += 198;
 
         // ── Advanced ───────────────────────────────────────────────────
-        var grpAdv = MakeGroup("Advanced", y, 56);
+        var grpAdv = MakeGroup("Advanced", y, 144);
 
         grpAdv.Controls.Add(MakeLabel("Poll Interval (s):", LblL, 22));
         _pollBox = new NumericUpDown
@@ -430,8 +431,30 @@ public class SettingsWindow : Form
             Font    = new Font("Segoe UI", 9f)
         };
         grpAdv.Controls.Add(_diagCheck);
+
+        grpAdv.Controls.Add(MakeLabel("App Project ID:", LblL, 52));
+        _appProjectIdBox = new NumericUpDown
+        {
+            Minimum = 0, Maximum = 999999,
+            Value   = Math.Max(0, cfg.AppProjectId),
+            Left    = FldL, Top = 50, Width = 120,
+            Font    = new Font("Segoe UI", 9f)
+        };
+        grpAdv.Controls.Add(_appProjectIdBox);
+
+        grpAdv.Controls.Add(MakeLabel("App Repo Path:", LblL, 82));
+        _appRepoPathBox = MakeTextBox(cfg.AppRepoPath, FldL, 80, FldW);
+        grpAdv.Controls.Add(_appRepoPathBox);
+
+        grpAdv.Controls.Add(new Label
+        {
+            Text      = "💡 App Project ID and Repo Path control the update checker - update these if the app repo changes",
+            Left = LblL, Top = 108, Width = GrpW - 16, Height = 30,
+            ForeColor = Color.DimGray, Font = new Font("Segoe UI", 7.5f)
+        });
+
         Controls.Add(grpAdv);
-        y += 66;
+        y += 154;
 
         // ── Action Buttons ─────────────────────────────────────────────
         int btnW            = (GrpW - 6) / 4;
@@ -495,18 +518,20 @@ public class SettingsWindow : Form
         try
         {
             var cfg = ConfigLoader.AppConfig;
-            cfg.UrlServer          = _urlBox?.Text.Trim()               ?? cfg.UrlServer;
-            cfg.KeyFile            = _keyBox?.Text.Trim()               ?? cfg.KeyFile;
-            cfg.TokenFile          = _tokenFileBox?.Text.Trim()         ?? cfg.TokenFile;
+            cfg.UrlServer          = _urlBox?.Text.Trim()                 ?? cfg.UrlServer;
+            cfg.KeyFile            = _keyBox?.Text.Trim()                 ?? cfg.KeyFile;
+            cfg.TokenFile          = _tokenFileBox?.Text.Trim()           ?? cfg.TokenFile;
             cfg.Flavour            = (string?)_flavourCombo?.SelectedItem ?? cfg.Flavour;
-            cfg.Diagnostics        = _diagCheck?.Checked                ?? cfg.Diagnostics;
-            cfg.ManualMode         = _manualCheck?.Checked              ?? cfg.ManualMode;
-            cfg.FlavourPollSeconds = (int?)_pollBox?.Value              ?? cfg.FlavourPollSeconds;
-            cfg.FlavourProjectId   = (int?)_projectIdBox?.Value         ?? cfg.FlavourProjectId;
+            cfg.Diagnostics        = _diagCheck?.Checked                  ?? cfg.Diagnostics;
+            cfg.ManualMode         = _manualCheck?.Checked                ?? cfg.ManualMode;
+            cfg.FlavourPollSeconds = (int?)_pollBox?.Value                ?? cfg.FlavourPollSeconds;
+            cfg.FlavourProjectId   = (int?)_projectIdBox?.Value           ?? cfg.FlavourProjectId;
+            cfg.AppProjectId       = (int?)_appProjectIdBox?.Value        ?? cfg.AppProjectId;
+            cfg.AppRepoPath        = _appRepoPathBox?.Text.Trim()         ?? cfg.AppRepoPath;
             cfg.UrlBrowserName     = (_urlBrowserCombo?.SelectedItem?.ToString() ?? "default").ToLowerInvariant();
-            cfg.UrlBrowserPath     = _urlBrowserPathBox?.Text.Trim()    ?? cfg.UrlBrowserPath;
+            cfg.UrlBrowserPath     = _urlBrowserPathBox?.Text.Trim()      ?? cfg.UrlBrowserPath;
             cfg.BrowserName        = (_browserCombo?.SelectedItem?.ToString() ?? "default").ToLowerInvariant();
-            cfg.BrowserPath        = _browserPathBox?.Text.Trim()       ?? cfg.BrowserPath;
+            cfg.BrowserPath        = _browserPathBox?.Text.Trim()         ?? cfg.BrowserPath;
             cfg.RunAsProfiles      = _runasProfiles;
 
             ConfigLoader.Save(cfg);
@@ -538,10 +563,10 @@ public class SettingsWindow : Form
         new() { Text = text, Left = GrpL, Top = top, Width = GrpW, Height = height, Font = new Font("Segoe UI", 9f) };
 
     private static Label MakeLabel(string text, int x, int y) =>
-        new() { Text = text, Left = x, Top = y + 3, Width = LblW, Height = 20, TextAlign = ContentAlignment.MiddleRight, Font = new Font("Segoe UI", 9f) };
+        new() { Text = text, Left = x, Top = y + 3, Width = LblW, Height = 20, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Segoe UI", 9f) };
 
     private static Label MakePanelLabel(string text, int x, int y) =>
-        new() { Text = text, Left = x, Top = y + 3, Width = 92, Height = 20, TextAlign = ContentAlignment.MiddleRight, Font = new Font("Segoe UI", 9f) };
+        new() { Text = text, Left = x, Top = y + 3, Width = 92, Height = 20, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Segoe UI", 9f) };
 
     private static TextBox MakeTextBox(string text, int x, int y, int width, bool password = false) =>
         new() { Text = text, Left = x, Top = y, Width = width, UseSystemPasswordChar = password, Font = new Font("Segoe UI", 9f), BorderStyle = BorderStyle.FixedSingle };

@@ -34,6 +34,13 @@ public class AppConfig
     [JsonPropertyName("flavour_poll_seconds")]
     public int FlavourPollSeconds { get; set; } = 300;
 
+    // ── App update checker ────────────────────────────────────────────
+    [JsonPropertyName("app_project_id")]
+    public int AppProjectId { get; set; } = 526;
+
+    [JsonPropertyName("app_repo_path")]
+    public string AppRepoPath { get; set; } = "service-delivery/pandatools";
+
     // ── Default browser (used for url type items) ─────────────────────
     [JsonPropertyName("url_browser_name")]
     public string UrlBrowserName { get; set; } = "default";
@@ -48,7 +55,7 @@ public class AppConfig
     [JsonPropertyName("browser_path")]
     public string BrowserPath { get; set; } = "";
 
-    // ── Default RunAs profiles — edit these before compiling ──────────
+    // ── Default RunAs profiles - edit these before compiling ──────────
     [JsonPropertyName("runas_profiles")]
     public List<RunAsProfile> RunAsProfiles { get; set; } = new()
     {

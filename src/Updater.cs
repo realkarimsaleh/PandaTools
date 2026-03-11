@@ -9,16 +9,28 @@ public static class Updater
     private static readonly string CurrentVersion =
         Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.0.0";
 
-    private const int GitLabProjectId = 526;
     private static readonly HttpClient Http = new();
 
     public static async Task CheckAsync(bool silent)
     {
         try
         {
-            var cfg     = ConfigLoader.AppConfig;
-            var baseUrl = cfg.UrlServer.TrimEnd('/');
-            var apiUrl  = $"{baseUrl}/api/v4/projects/{GitLabProjectId}/releases";
+            var cfg       = ConfigLoader.AppConfig;
+            var baseUrl   = cfg.UrlServer.TrimEnd('/');
+            var projectId = cfg.AppProjectId;
+            var repoPath  = cfg.AppRepoPath.Trim('/');
+
+            if (projectId <= 0)
+            {
+                if (!silent)
+                    MessageBox.Show(
+                        "App Project ID is not configured.\n\n" +
+                        "Go to Settings → Advanced and set the App Project ID.",
+                        "PandaTools", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            var apiUrl = $"{baseUrl}/api/v4/projects/{projectId}/releases";
 
             if (!Http.DefaultRequestHeaders.UserAgent.Any())
                 Http.DefaultRequestHeaders.UserAgent.ParseAdd("PandaTools");
@@ -33,7 +45,7 @@ public static class Updater
             if (releases is null || releases.Length == 0) return;
 
             var latestTag  = releases[0].GetProperty("tag_name").GetString()!;
-            var releaseUrl = $"{baseUrl}/service-delivery/pandatools/-/releases/{latestTag}";
+            var releaseUrl = $"{baseUrl}/{repoPath}/-/releases/{latestTag}";
 
             if (IsNewer(latestTag, CurrentVersion))
             {

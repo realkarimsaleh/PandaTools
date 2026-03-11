@@ -54,7 +54,7 @@ public static class MenuBuilder
     private static EventHandler ResolveHandler(FlavourItem item) =>
         item.Type.ToLowerInvariant() switch
         {
-            // url — supports runas_profile, multi-value, configurable browser
+            // url - supports runas_profile, multi-value, configurable browser
             "url" => (_, _) =>
             {
                 var cfg  = ConfigLoader.AppConfig;
@@ -79,7 +79,7 @@ public static class MenuBuilder
                 }
             },
 
-            // incognito — supports runas_profile, multi-value, configurable browser
+            // incognito - supports runas_profile, multi-value, configurable browser
             "incognito" => (_, _) =>
             {
                 var cfg  = ConfigLoader.AppConfig;
@@ -211,7 +211,7 @@ public static class MenuBuilder
         };
     }
 
-    // ── URL — standard ────────────────────────────────────────────────
+    // ── URL - standard ────────────────────────────────────────────────
     private static void OpenUrl(string url, string browserName, string customPath)
     {
         try
@@ -235,15 +235,15 @@ public static class MenuBuilder
                 return;
             }
 
-            // Fallback — system default
+            // Fallback - system default
             Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
         }
         catch { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); }
     }
 
-    // ── URL — as a different user ─────────────────────────────────────
+    // ── URL - as a different user ─────────────────────────────────────
     // UseShellExecute must be false to pass credentials, so we need an
-    // explicit exe — "default" is resolved by trying common browsers in order.
+    // explicit exe - "default" is resolved by trying common browsers in order.
     private static void OpenUrlAsUser(string url, string browserName, string customPath, RunAsProfile? profile)
     {
         string? exePath;
@@ -262,7 +262,7 @@ public static class MenuBuilder
                     "Could not locate a browser for RunAs launch.\n\n" +
                     "Go to Settings → Browser and select a specific browser\n" +
                     "when using runas_profile with url items.",
-                    "PandaTools — Browser Not Found",
+                    "PandaTools - Browser Not Found",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
@@ -283,7 +283,7 @@ public static class MenuBuilder
         LaunchAsUser(exePath, $"\"{url}\"", profile);
     }
 
-    // ── Incognito — standard ──────────────────────────────────────────
+    // ── Incognito - standard ──────────────────────────────────────────
     private static void OpenIncognito(string url, string browserName, string customPath)
     {
         try
@@ -305,7 +305,7 @@ public static class MenuBuilder
         catch { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); }
     }
 
-    // ── Incognito — as a different user ───────────────────────────────
+    // ── Incognito - as a different user ───────────────────────────────
     private static void OpenIncognitoAsUser(string url, string browserName, string customPath, RunAsProfile? profile)
     {
         var (exePath, flag) = ResolveIncognitoBrowser(browserName, customPath);
