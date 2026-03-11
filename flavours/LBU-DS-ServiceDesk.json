@@ -1,5 +1,5 @@
 {
-  "version": "2.1",
+  "version": "2.2",
   "hidden": false,
   "menu":
   [
@@ -44,9 +44,14 @@
           "value": "https://entra.microsoft.com/" 
         },
         { 
-          "label": "JAMF (incognito)", 
-          "type": "incognito", 
-          "value": "https://cc-cox.leedsbeckett.ac.uk:8443"
+          "label": "JAMF (Workstation Admin)", 
+          "type": "url", 
+          "runas_profile": "Workstation Admin",
+          "values":
+          [
+            "https://cc-cox.leedsbeckett.ac.uk:8443",
+            "https://docs.google.com/spreadsheets/d/117HbXagaTMBqWs_e5Jc7Q-2OKcP4EHmCo9fK6P23fas/edit?pli=1#gid=0"
+          ] 
         }
       ]
     },
