@@ -1,5 +1,10 @@
 # PandaTools Changelog
 
+## [2.0.2] - 11/03/26
+### Changed
+Updated the default **RunAs** profile so the `Workstation Admin` username is now blank by default,
+requiring explicit configuration per installation instead of shipping a placeholder `DOMAIN\Username` value.
+
 ## [2.0.1] - 10/03/26
 ### Fixed
 - Updated Syntax in Source File and also updated Languestic Errors
