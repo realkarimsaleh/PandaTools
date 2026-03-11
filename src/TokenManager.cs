@@ -26,15 +26,7 @@ public static class TokenManager
                 _cachedToken = Encoding.UTF8.GetString(plain);
                 return _cachedToken;
             }
-            catch { /* corrupted or wrong user - fall through */ }
-        }
-
-        // Legacy plain-text keyFile/tokenFile path (kept for migration)
-        if (!string.IsNullOrWhiteSpace(cfg.KeyFile) && File.Exists(cfg.KeyFile)
-            && !string.IsNullOrWhiteSpace(cfg.TokenFile) && File.Exists(cfg.TokenFile))
-        {
-            _cachedToken = LegacyDecrypt(cfg.KeyFile, cfg.TokenFile);
-            return _cachedToken;
+            catch { /* corrupted or wrong user */ }
         }
 
         return null;
@@ -45,13 +37,9 @@ public static class TokenManager
     {
         var plain  = Encoding.UTF8.GetBytes(plainToken.Trim());
         var cipher = ProtectedData.Protect(plain, null, DataProtectionScope.CurrentUser);
-        var b64    = Convert.ToBase64String(cipher);
 
         var cfg = ConfigLoader.AppConfig;
-        cfg.TokenEncrypted = b64;
-        // Clear legacy fields
-        cfg.KeyFile   = "";
-        cfg.TokenFile = "";
+        cfg.TokenEncrypted = Convert.ToBase64String(cipher);
 
         File.WriteAllText(ConfigLoader.ConfigPath,
             JsonSerializer.Serialize(cfg, ConfigLoader.JsonOpts));
@@ -59,16 +47,18 @@ public static class TokenManager
         Reset();
     }
 
-    /// <summary>Returns true if a token (encrypted or legacy) is configured.</summary>
+    /// <summary>Returns true if a DPAPI-encrypted token is configured.</summary>
     public static bool HasToken()
     {
         var cfg = ConfigLoader.AppConfig;
-        return !string.IsNullOrWhiteSpace(cfg.TokenEncrypted)
-            || (!string.IsNullOrWhiteSpace(cfg.KeyFile) && File.Exists(cfg.KeyFile));
+        return !string.IsNullOrWhiteSpace(cfg.TokenEncrypted);
     }
 
-    // ── Legacy AES/PowerShell decrypt (migration path) ─────────────────
-    private static string? LegacyDecrypt(string keyFile, string tokenFile)
+    // ── Legacy AES/PowerShell decrypt (one-time migration use only) ────
+    // Call manually if migrating an old key+token file pair to DPAPI:
+    //   var plain = TokenManager.LegacyDecrypt(keyFilePath, tokenFilePath);
+    //   if (plain != null) TokenManager.SaveToken(plain);
+    public static string? LegacyDecrypt(string keyFile, string tokenFile)
     {
         const string PS51 = @"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe";
         if (!File.Exists(PS51)) return null;
