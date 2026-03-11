@@ -1,3 +1,22 @@
 <<<<<<< HEAD
 =======
 >>>>>>> 6f7fe90280e8b69becf13e230f83e46b0cf6a2b7
+C:\Code Repositories\LBU-ITSRK-Development\C#\PandaTools\bin\Debug\net10.0-windows\assets\PandaTools.ico
+C:\Code Repositories\LBU-ITSRK-Development\C#\PandaTools\bin\Debug\net10.0-windows\flavours\LBU-DS-ServiceDesk.json
+C:\Code Repositories\LBU-ITSRK-Development\C#\PandaTools\bin\Debug\net10.0-windows\flavours\LBU-DS-SupportServices.json
+C:\Code Repositories\LBU-ITSRK-Development\C#\PandaTools\bin\Debug\net10.0-windows\flavours\Templete.json
+C:\Code Repositories\LBU-ITSRK-Development\C#\PandaTools\bin\Debug\net10.0-windows\PandaTools.exe
+C:\Code Repositories\LBU-ITSRK-Development\C#\PandaTools\bin\Debug\net10.0-windows\PandaTools.deps.json
+C:\Code Repositories\LBU-ITSRK-Development\C#\PandaTools\bin\Debug\net10.0-windows\PandaTools.runtimeconfig.json
+C:\Code Repositories\LBU-ITSRK-Development\C#\PandaTools\bin\Debug\net10.0-windows\PandaTools.dll
+C:\Code Repositories\LBU-ITSRK-Development\C#\PandaTools\bin\Debug\net10.0-windows\PandaTools.pdb
+C:\Code Repositories\LBU-ITSRK-Development\C#\PandaTools\obj\Debug\net10.0-windows\PandaTools.GeneratedMSBuildEditorConfig.editorconfig
+C:\Code Repositories\LBU-ITSRK-Development\C#\PandaTools\obj\Debug\net10.0-windows\PandaTools.AssemblyInfoInputs.cache
+C:\Code Repositories\LBU-ITSRK-Development\C#\PandaTools\obj\Debug\net10.0-windows\PandaTools.AssemblyInfo.cs
+C:\Code Repositories\LBU-ITSRK-Development\C#\PandaTools\obj\Debug\net10.0-windows\PandaTools.csproj.CoreCompileInputs.cache
+C:\Code Repositories\LBU-ITSRK-Development\C#\PandaTools\obj\Debug\net10.0-windows\PandaTools.sourcelink.json
+C:\Code Repositories\LBU-ITSRK-Development\C#\PandaTools\obj\Debug\net10.0-windows\PandaTools.dll
+C:\Code Repositories\LBU-ITSRK-Development\C#\PandaTools\obj\Debug\net10.0-windows\refint\PandaTools.dll
+C:\Code Repositories\LBU-ITSRK-Development\C#\PandaTools\obj\Debug\net10.0-windows\PandaTools.pdb
+C:\Code Repositories\LBU-ITSRK-Development\C#\PandaTools\obj\Debug\net10.0-windows\PandaTools.genruntimeconfig.cache
+C:\Code Repositories\LBU-ITSRK-Development\C#\PandaTools\obj\Debug\net10.0-windows\ref\PandaTools.dll
