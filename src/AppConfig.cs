@@ -9,14 +9,12 @@ public class AppConfig
     [JsonPropertyName("flavour")]
     public string Flavour { get; set; } = "LBU-DS-ServiceDesk";
 
-    // Legacy key/token file fields retained for backwards compat
     [JsonPropertyName("keyFile")]
     public string KeyFile { get; set; } = "";
 
     [JsonPropertyName("tokenFile")]
     public string TokenFile { get; set; } = "";
 
-    // DPAPI-encrypted token - this is what TokenManager stores/reads
     // PLATFORM NOTE: DPAPI is Windows-only. For macOS port replace with Keychain.
     [JsonPropertyName("token_encrypted")]
     public string TokenEncrypted { get; set; } = "";
@@ -36,22 +34,25 @@ public class AppConfig
     [JsonPropertyName("flavour_poll_seconds")]
     public int FlavourPollSeconds { get; set; } = 300;
 
+    // ── Default browser (used for url type items) ─────────────────────
+    [JsonPropertyName("url_browser_name")]
+    public string UrlBrowserName { get; set; } = "default";
+
+    [JsonPropertyName("url_browser_path")]
+    public string UrlBrowserPath { get; set; } = "";
+
+    // ── Incognito browser (used for incognito type items) ─────────────
     [JsonPropertyName("browser_name")]
     public string BrowserName { get; set; } = "default";
 
     [JsonPropertyName("browser_path")]
     public string BrowserPath { get; set; } = "";
 
-    // ── Default RunAs profiles - edit these before compiling ──────────
+    // ── Default RunAs profiles — edit these before compiling ──────────
     [JsonPropertyName("runas_profiles")]
     public List<RunAsProfile> RunAsProfiles { get; set; } = new()
     {
-        new()
-        {
-            Name = "Workstation Admin",
-            Username = @"",
-            Password = ""
-        }
+        new() { Name = "Workstation Admin", Username = @"", Password = "" }
     };
 }
 
@@ -100,10 +101,14 @@ public class FlavourItem
 
     [JsonPropertyName("type")]
     public string Type { get; set; } = "";
-    // url | incognito | app | runas | script | powershell | exe
+    // url | incognito | app | runas | script | powershell | exe | explorer
 
     [JsonPropertyName("value")]
     public string Value { get; set; } = "";
+
+    // Multi-URL support for url and incognito types
+    [JsonPropertyName("values")]
+    public List<string> Values { get; set; } = new();
 
     [JsonPropertyName("arguments")]
     public string Arguments { get; set; } = "";

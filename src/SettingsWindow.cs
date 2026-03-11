@@ -9,22 +9,24 @@ using System.Windows.Forms;
 
 public class SettingsWindow : Form
 {
-    private TextBox?        _urlBox;
-    private TextBox?        _keyBox;
-    private TextBox?        _tokenFileBox;
-    private TextBox?        _tokenPlainBox;
-    private TextBox?        _browserPathBox;
-    private TextBox?        _runasUserBox;
-    private TextBox?        _runasPassBox;
-    private TextBox?        _runasNameBox;
-    private ComboBox?       _flavourCombo;
-    private ComboBox?       _browserCombo;
-    private ListBox?        _runasListBox;
-    private NumericUpDown?  _pollBox;
-    private NumericUpDown?  _projectIdBox;
-    private CheckBox?       _diagCheck;
-    private CheckBox?       _manualCheck;
-    private Label?          _statusLabel;
+    private TextBox?       _urlBox;
+    private TextBox?       _keyBox;
+    private TextBox?       _tokenFileBox;
+    private TextBox?       _tokenPlainBox;
+    private TextBox?       _browserPathBox;
+    private TextBox?       _urlBrowserPathBox;
+    private TextBox?       _runasUserBox;
+    private TextBox?       _runasPassBox;
+    private TextBox?       _runasNameBox;
+    private ComboBox?      _flavourCombo;
+    private ComboBox?      _browserCombo;
+    private ComboBox?      _urlBrowserCombo;
+    private ListBox?       _runasListBox;
+    private NumericUpDown? _pollBox;
+    private NumericUpDown? _projectIdBox;
+    private CheckBox?      _diagCheck;
+    private CheckBox?      _manualCheck;
+    private Label?         _statusLabel;
 
     private List<RunAsProfile> _runasProfiles = new();
     private int _selectedProfileIndex = -1;
@@ -36,7 +38,7 @@ public class SettingsWindow : Form
     private const int LblL = 8;
     private const int LblW = 112;
     private const int FldL = 124;
-    private const int FldW = GrpW - FldL - 12;   // 444
+    private const int FldW = GrpW - FldL - 12;
 
     private const int FlavLblL = 6;
     private const int FlavLblW = 88;
@@ -245,14 +247,53 @@ public class SettingsWindow : Form
         Controls.Add(grpFlavour);
         y += 118;
 
-        // ── Private Browser ────────────────────────────────────────────
-        var grpBrowser = MakeGroup("🕶️ Private Browsing", y, 96);
+        // ── Browser ────────────────────────────────────────────────────
+        var grpBrowser = MakeGroup("🌐 Browser", y, 134);
 
-        grpBrowser.Controls.Add(MakeLabel("Browser:", LblL, 24));
+        // Row 1 — Default browser (url type items)
+        grpBrowser.Controls.Add(MakeLabel("Default:", LblL, 22));
+        _urlBrowserCombo = new ComboBox
+        {
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Left = FldL, Top = 20, Width = 165,
+            Font = new Font("Segoe UI", 9f)
+        };
+        _urlBrowserCombo.Items.AddRange(new object[] { "Default", "Chrome", "Edge", "Firefox", "Brave", "Custom" });
+        foreach (var b in _urlBrowserCombo.Items)
+            if (b.ToString()!.Equals(cfg.UrlBrowserName, StringComparison.OrdinalIgnoreCase))
+            { _urlBrowserCombo.SelectedItem = b; break; }
+        if (_urlBrowserCombo.SelectedIndex < 0) _urlBrowserCombo.SelectedIndex = 0;
+        grpBrowser.Controls.Add(_urlBrowserCombo);
+
+        var btnBrowseUrl = MakeButton("📁 Browse...", FldL + 171, 19, 100);
+        btnBrowseUrl.Click += (_, _) =>
+        {
+            using var ofd = new OpenFileDialog { Filter = "Executables (*.exe)|*.exe", Title = "Select browser .exe" };
+            if (ofd.ShowDialog() == DialogResult.OK)
+            {
+                _urlBrowserPathBox!.Text      = ofd.FileName;
+                _urlBrowserCombo.SelectedItem = "Custom";
+            }
+        };
+        grpBrowser.Controls.Add(btnBrowseUrl);
+
+        grpBrowser.Controls.Add(MakeLabel("Custom Path:", LblL, 50));
+        _urlBrowserPathBox = MakeTextBox(cfg.UrlBrowserPath, FldL, 48, FldW);
+        grpBrowser.Controls.Add(_urlBrowserPathBox);
+
+        // Divider
+        grpBrowser.Controls.Add(new Panel
+        {
+            Left = LblL, Top = 74, Width = GrpW - 20, Height = 1,
+            BackColor = Color.FromArgb(220, 220, 220)
+        });
+
+        // Row 2 — Incognito browser (incognito type items)
+        grpBrowser.Controls.Add(MakeLabel("Incognito:", LblL, 84));
         _browserCombo = new ComboBox
         {
             DropDownStyle = ComboBoxStyle.DropDownList,
-            Left = FldL, Top = 22, Width = 165,
+            Left = FldL, Top = 82, Width = 165,
             Font = new Font("Segoe UI", 9f)
         };
         _browserCombo.Items.AddRange(new object[] { "Default", "Chrome", "Edge", "Firefox", "Brave", "Custom" });
@@ -262,8 +303,8 @@ public class SettingsWindow : Form
         if (_browserCombo.SelectedIndex < 0) _browserCombo.SelectedIndex = 0;
         grpBrowser.Controls.Add(_browserCombo);
 
-        var btnBrowse = MakeButton("📁 Browse...", FldL + 171, 21, 100);
-        btnBrowse.Click += (_, _) =>
+        var btnBrowseIncognito = MakeButton("📁 Browse...", FldL + 171, 81, 100);
+        btnBrowseIncognito.Click += (_, _) =>
         {
             using var ofd = new OpenFileDialog { Filter = "Executables (*.exe)|*.exe", Title = "Select browser .exe" };
             if (ofd.ShowDialog() == DialogResult.OK)
@@ -272,14 +313,14 @@ public class SettingsWindow : Form
                 _browserCombo.SelectedItem = "Custom";
             }
         };
-        grpBrowser.Controls.Add(btnBrowse);
+        grpBrowser.Controls.Add(btnBrowseIncognito);
 
-        grpBrowser.Controls.Add(MakeLabel("Custom Path:", LblL, 58));
-        _browserPathBox = MakeTextBox(cfg.BrowserPath, FldL, 56, FldW);
+        grpBrowser.Controls.Add(MakeLabel("Custom Path:", LblL, 112));
+        _browserPathBox = MakeTextBox(cfg.BrowserPath, FldL, 110, FldW);
         grpBrowser.Controls.Add(_browserPathBox);
 
         Controls.Add(grpBrowser);
-        y += 106;
+        y += 144;
 
         // ── RunAs Profiles ─────────────────────────────────────────────
         var grpRunAs = MakeGroup("👤 RunAs Profiles", y, 188);
@@ -297,7 +338,7 @@ public class SettingsWindow : Form
         const int pnlLeft = 182;
         var pnlRight = new Panel
         {
-            Left = pnlLeft, Top = 14,
+            Left   = pnlLeft, Top = 14,
             Width  = GrpW - pnlLeft - 8,
             Height = 172
         };
@@ -329,9 +370,11 @@ public class SettingsWindow : Form
             ForeColor = Color.DimGray, Font = new Font("Segoe UI", 7.5f)
         });
 
-        var btnAdd  = MakeButton("+ Add",     0,   112, 82);
-        var btnSave = MakeButton("💾 Save",   88,  112, 82);
-        var btnDel  = MakeButton("🗑 Delete", 176, 112, 82);
+        // Buttons aligned to password box (start at rFldX, span rFldW)
+        int rbw = (rFldW - 4) / 3;
+        var btnAdd  = MakeButton("+ Add",     rFldX,           112, rbw);
+        var btnSave = MakeButton("💾 Save",   rFldX + rbw + 2, 112, rbw);
+        var btnDel  = MakeButton("🗑 Delete", rFldX + rbw * 2 + 4, 112, rbw);
 
         btnAdd.Click += (_, _) =>
         {
@@ -452,16 +495,18 @@ public class SettingsWindow : Form
         try
         {
             var cfg = ConfigLoader.AppConfig;
-            cfg.UrlServer          = _urlBox?.Text.Trim()          ?? cfg.UrlServer;
-            cfg.KeyFile            = _keyBox?.Text.Trim()          ?? cfg.KeyFile;
-            cfg.TokenFile          = _tokenFileBox?.Text.Trim()    ?? cfg.TokenFile;
+            cfg.UrlServer          = _urlBox?.Text.Trim()               ?? cfg.UrlServer;
+            cfg.KeyFile            = _keyBox?.Text.Trim()               ?? cfg.KeyFile;
+            cfg.TokenFile          = _tokenFileBox?.Text.Trim()         ?? cfg.TokenFile;
             cfg.Flavour            = (string?)_flavourCombo?.SelectedItem ?? cfg.Flavour;
-            cfg.Diagnostics        = _diagCheck?.Checked           ?? cfg.Diagnostics;
-            cfg.ManualMode         = _manualCheck?.Checked         ?? cfg.ManualMode;
-            cfg.FlavourPollSeconds = (int?)_pollBox?.Value         ?? cfg.FlavourPollSeconds;
-            cfg.FlavourProjectId   = (int?)_projectIdBox?.Value    ?? cfg.FlavourProjectId;
+            cfg.Diagnostics        = _diagCheck?.Checked                ?? cfg.Diagnostics;
+            cfg.ManualMode         = _manualCheck?.Checked              ?? cfg.ManualMode;
+            cfg.FlavourPollSeconds = (int?)_pollBox?.Value              ?? cfg.FlavourPollSeconds;
+            cfg.FlavourProjectId   = (int?)_projectIdBox?.Value         ?? cfg.FlavourProjectId;
+            cfg.UrlBrowserName     = (_urlBrowserCombo?.SelectedItem?.ToString() ?? "default").ToLowerInvariant();
+            cfg.UrlBrowserPath     = _urlBrowserPathBox?.Text.Trim()    ?? cfg.UrlBrowserPath;
             cfg.BrowserName        = (_browserCombo?.SelectedItem?.ToString() ?? "default").ToLowerInvariant();
-            cfg.BrowserPath        = _browserPathBox?.Text.Trim()  ?? cfg.BrowserPath;
+            cfg.BrowserPath        = _browserPathBox?.Text.Trim()       ?? cfg.BrowserPath;
             cfg.RunAsProfiles      = _runasProfiles;
 
             ConfigLoader.Save(cfg);
