@@ -10,8 +10,6 @@ using System.Windows.Forms;
 public class SettingsWindow : Form
 {
     private TextBox?       _urlBox;
-    private TextBox?       _keyBox;
-    private TextBox?       _tokenFileBox;
     private TextBox?       _tokenPlainBox;
     private TextBox?       _browserPathBox;
     private TextBox?       _urlBrowserPathBox;
@@ -26,6 +24,7 @@ public class SettingsWindow : Form
     private NumericUpDown? _pollBox;
     private NumericUpDown? _projectIdBox;
     private NumericUpDown? _appProjectIdBox;
+    private NumericUpDown? _warnDaysBox;
     private CheckBox?      _diagCheck;
     private CheckBox?      _manualCheck;
     private Label?         _statusLabel;
@@ -100,42 +99,34 @@ public class SettingsWindow : Form
         y += 42;
 
         // ── Connection ─────────────────────────────────────────────────
-        var grpConn = MakeGroup("Connection", y, 200);
+        var grpConn = MakeGroup("Connection", y, 168);
 
         grpConn.Controls.Add(MakeLabel("GitLab Server:", LblL, 22));
         _urlBox = MakeTextBox(cfg.UrlServer, FldL, 20, FldW);
         grpConn.Controls.Add(_urlBox);
 
-        grpConn.Controls.Add(MakeLabel("Key File:", LblL, 52));
-        _keyBox = MakeTextBox(cfg.KeyFile, FldL, 50, FldW);
-        grpConn.Controls.Add(_keyBox);
-
-        grpConn.Controls.Add(MakeLabel("Token File:", LblL, 82));
-        _tokenFileBox = MakeTextBox(cfg.TokenFile, FldL, 80, FldW);
-        grpConn.Controls.Add(_tokenFileBox);
-
-        grpConn.Controls.Add(MakeLabel("Project ID:", LblL, 112));
+        grpConn.Controls.Add(MakeLabel("Project ID:", LblL, 52));
         _projectIdBox = new NumericUpDown
         {
             Minimum = 0, Maximum = 999999,
             Value   = Math.Max(0, cfg.FlavourProjectId),
-            Left    = FldL, Top = 110, Width = 120,
+            Left    = FldL, Top = 50, Width = 120,
             Font    = new Font("Segoe UI", 9f)
         };
         grpConn.Controls.Add(_projectIdBox);
         grpConn.Controls.Add(new Label
         {
             Text      = "GitLab project ID used for flavour polling",
-            Left = FldL + 126, Top = 113, Width = 290, Height = 16,
+            Left = FldL + 126, Top = 53, Width = 290, Height = 16,
             ForeColor = Color.DimGray, Font = new Font("Segoe UI", 7.5f)
         });
 
-        grpConn.Controls.Add(MakeLabel("New Token:", LblL, 142));
-        _tokenPlainBox = MakeTextBox("", FldL, 140, FldW - 110, password: true);
+        grpConn.Controls.Add(MakeLabel("New Token:", LblL, 82));
+        _tokenPlainBox = MakeTextBox("", FldL, 80, FldW - 110, password: true);
         _tokenPlainBox.PlaceholderText = "Leave blank to keep current token";
         grpConn.Controls.Add(_tokenPlainBox);
 
-        var btnUpdateToken = MakeButton("🔑 Update Token", FldL + FldW - 108, 139, 110);
+        var btnUpdateToken = MakeButton("🔑 Update Token", FldL + FldW - 108, 79, 110);
         btnUpdateToken.BackColor = Color.FromArgb(0, 123, 255);
         btnUpdateToken.ForeColor = Color.White;
         btnUpdateToken.FlatStyle = FlatStyle.Flat;
@@ -153,12 +144,21 @@ public class SettingsWindow : Form
         grpConn.Controls.Add(new Label
         {
             Text      = "💡 Token is encrypted with DPAPI (per-user, this machine only). Plain-text is never stored.",
-            Left = LblL, Top = 172, Width = GrpW - 16, Height = 16,
+            Left = LblL, Top = 112, Width = GrpW - 16, Height = 16,
             ForeColor = Color.DimGray, Font = new Font("Segoe UI", 7.5f)
         });
 
+        var btnCheckExpiry = MakeButton("🔍 Check Token Expiry", LblL, 132, 160);
+        btnCheckExpiry.Click += async (_, _) =>
+        {
+            Status("⏳ Checking token expiry...");
+            var result = await TokenExpiryChecker.GetExpiryInfoAsync();
+            Status(result);
+        };
+        grpConn.Controls.Add(btnCheckExpiry);
+
         Controls.Add(grpConn);
-        y += 210;
+        y += 178;
 
         // ── Flavour ─────────────────────────────────────────────────────
         var grpFlavour = MakeGroup("Flavour", y, 108);
@@ -252,7 +252,6 @@ public class SettingsWindow : Form
         // ── Browser ────────────────────────────────────────────────────
         var grpBrowser = MakeGroup("🌐 Browser", y, 148);
 
-        // Row 1 - Default browser (url type items)
         grpBrowser.Controls.Add(MakeLabel("Default:", LblL, 22));
         _urlBrowserCombo = new ComboBox
         {
@@ -283,14 +282,12 @@ public class SettingsWindow : Form
         _urlBrowserPathBox = MakeTextBox(cfg.UrlBrowserPath, FldL, 48, FldW);
         grpBrowser.Controls.Add(_urlBrowserPathBox);
 
-        // Divider
         grpBrowser.Controls.Add(new Panel
         {
             Left = LblL, Top = 76, Width = GrpW - 20, Height = 1,
             BackColor = Color.FromArgb(220, 220, 220)
         });
 
-        // Row 2 - Incognito browser (incognito type items)
         grpBrowser.Controls.Add(MakeLabel("Incognito:", LblL, 86));
         _browserCombo = new ComboBox
         {
@@ -411,7 +408,7 @@ public class SettingsWindow : Form
         y += 198;
 
         // ── Advanced ───────────────────────────────────────────────────
-        var grpAdv = MakeGroup("Advanced", y, 144);
+        var grpAdv = MakeGroup("Advanced", y, 172);
 
         grpAdv.Controls.Add(MakeLabel("Poll Interval (s):", LblL, 22));
         _pollBox = new NumericUpDown
@@ -432,29 +429,45 @@ public class SettingsWindow : Form
         };
         grpAdv.Controls.Add(_diagCheck);
 
-        grpAdv.Controls.Add(MakeLabel("App Project ID:", LblL, 52));
+        grpAdv.Controls.Add(MakeLabel("Token Warn Days:", LblL, 52));
+        _warnDaysBox = new NumericUpDown
+        {
+            Minimum = 1, Maximum = 90,
+            Value   = Math.Max(1, cfg.TokenExpiryWarnDays),
+            Left    = FldL, Top = 50, Width = 90,
+            Font    = new Font("Segoe UI", 9f)
+        };
+        grpAdv.Controls.Add(_warnDaysBox);
+        grpAdv.Controls.Add(new Label
+        {
+            Text      = "Days before expiry to show the tray warning balloon",
+            Left = FldL + 96, Top = 53, Width = 300, Height = 16,
+            ForeColor = Color.DimGray, Font = new Font("Segoe UI", 7.5f)
+        });
+
+        grpAdv.Controls.Add(MakeLabel("App Project ID:", LblL, 82));
         _appProjectIdBox = new NumericUpDown
         {
             Minimum = 0, Maximum = 999999,
             Value   = Math.Max(0, cfg.AppProjectId),
-            Left    = FldL, Top = 50, Width = 120,
+            Left    = FldL, Top = 80, Width = 120,
             Font    = new Font("Segoe UI", 9f)
         };
         grpAdv.Controls.Add(_appProjectIdBox);
 
-        grpAdv.Controls.Add(MakeLabel("App Repo Path:", LblL, 82));
-        _appRepoPathBox = MakeTextBox(cfg.AppRepoPath, FldL, 80, FldW);
+        grpAdv.Controls.Add(MakeLabel("App Repo Path:", LblL, 112));
+        _appRepoPathBox = MakeTextBox(cfg.AppRepoPath, FldL, 110, FldW);
         grpAdv.Controls.Add(_appRepoPathBox);
 
         grpAdv.Controls.Add(new Label
         {
             Text      = "💡 App Project ID and Repo Path control the update checker - update these if the app repo changes",
-            Left = LblL, Top = 108, Width = GrpW - 16, Height = 30,
+            Left = LblL, Top = 136, Width = GrpW - 16, Height = 30,
             ForeColor = Color.DimGray, Font = new Font("Segoe UI", 7.5f)
         });
 
         Controls.Add(grpAdv);
-        y += 154;
+        y += 182;
 
         // ── Action Buttons ─────────────────────────────────────────────
         int btnW            = (GrpW - 6) / 4;
@@ -518,21 +531,20 @@ public class SettingsWindow : Form
         try
         {
             var cfg = ConfigLoader.AppConfig;
-            cfg.UrlServer          = _urlBox?.Text.Trim()                 ?? cfg.UrlServer;
-            cfg.KeyFile            = _keyBox?.Text.Trim()                 ?? cfg.KeyFile;
-            cfg.TokenFile          = _tokenFileBox?.Text.Trim()           ?? cfg.TokenFile;
-            cfg.Flavour            = (string?)_flavourCombo?.SelectedItem ?? cfg.Flavour;
-            cfg.Diagnostics        = _diagCheck?.Checked                  ?? cfg.Diagnostics;
-            cfg.ManualMode         = _manualCheck?.Checked                ?? cfg.ManualMode;
-            cfg.FlavourPollSeconds = (int?)_pollBox?.Value                ?? cfg.FlavourPollSeconds;
-            cfg.FlavourProjectId   = (int?)_projectIdBox?.Value           ?? cfg.FlavourProjectId;
-            cfg.AppProjectId       = (int?)_appProjectIdBox?.Value        ?? cfg.AppProjectId;
-            cfg.AppRepoPath        = _appRepoPathBox?.Text.Trim()         ?? cfg.AppRepoPath;
-            cfg.UrlBrowserName     = (_urlBrowserCombo?.SelectedItem?.ToString() ?? "default").ToLowerInvariant();
-            cfg.UrlBrowserPath     = _urlBrowserPathBox?.Text.Trim()      ?? cfg.UrlBrowserPath;
-            cfg.BrowserName        = (_browserCombo?.SelectedItem?.ToString() ?? "default").ToLowerInvariant();
-            cfg.BrowserPath        = _browserPathBox?.Text.Trim()         ?? cfg.BrowserPath;
-            cfg.RunAsProfiles      = _runasProfiles;
+            cfg.UrlServer            = _urlBox?.Text.Trim()                 ?? cfg.UrlServer;
+            cfg.Flavour              = (string?)_flavourCombo?.SelectedItem ?? cfg.Flavour;
+            cfg.Diagnostics          = _diagCheck?.Checked                  ?? cfg.Diagnostics;
+            cfg.ManualMode           = _manualCheck?.Checked                ?? cfg.ManualMode;
+            cfg.FlavourPollSeconds   = (int?)_pollBox?.Value                ?? cfg.FlavourPollSeconds;
+            cfg.FlavourProjectId     = (int?)_projectIdBox?.Value           ?? cfg.FlavourProjectId;
+            cfg.TokenExpiryWarnDays  = (int?)_warnDaysBox?.Value            ?? cfg.TokenExpiryWarnDays;
+            cfg.AppProjectId         = (int?)_appProjectIdBox?.Value        ?? cfg.AppProjectId;
+            cfg.AppRepoPath          = _appRepoPathBox?.Text.Trim()         ?? cfg.AppRepoPath;
+            cfg.UrlBrowserName       = (_urlBrowserCombo?.SelectedItem?.ToString() ?? "default").ToLowerInvariant();
+            cfg.UrlBrowserPath       = _urlBrowserPathBox?.Text.Trim()      ?? cfg.UrlBrowserPath;
+            cfg.BrowserName          = (_browserCombo?.SelectedItem?.ToString() ?? "default").ToLowerInvariant();
+            cfg.BrowserPath          = _browserPathBox?.Text.Trim()         ?? cfg.BrowserPath;
+            cfg.RunAsProfiles        = _runasProfiles;
 
             ConfigLoader.Save(cfg);
             TokenManager.Reset();
