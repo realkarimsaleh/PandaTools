@@ -49,7 +49,7 @@ public class AppConfig
         new()
         {
             Name = "Workstation Admin",
-            Username = @"DOMAIN\Username",
+            Username = @"",
             Password = ""
         }
     };
