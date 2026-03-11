@@ -13,11 +13,11 @@
   "project": {
     "version": "2.0.3",
     "restore": {
-      "projectUniqueName": "C:\\Code Repositories\\LBU-ITSRK-Development\\C#\\PandaTools\\PandaTools.csproj",
-      "projectName": "PandaTools",
-      "projectPath": "C:\\Code Repositories\\LBU-ITSRK-Development\\C#\\PandaTools\\PandaTools.csproj",
+      "projectUniqueName": "C:\\Code Repositories\\LBU-ITSRK-Development\\C#\\PandaTools\\PandaTools.Setup\\PandaTools.Setup.csproj",
+      "projectName": "PandaToolsSetup",
+      "projectPath": "C:\\Code Repositories\\LBU-ITSRK-Development\\C#\\PandaTools\\PandaTools.Setup\\PandaTools.Setup.csproj",
       "packagesPath": "C:\\Users\\saleh03\\.nuget\\packages\\",
-      "outputPath": "C:\\Code Repositories\\LBU-ITSRK-Development\\C#\\PandaTools\\obj\\",
+      "outputPath": "C:\\Code Repositories\\LBU-ITSRK-Development\\C#\\PandaTools\\PandaTools.Setup\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\saleh03\\AppData\\Roaming\\NuGet\\NuGet.Config"
