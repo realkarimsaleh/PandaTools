@@ -9,12 +9,6 @@ public class AppConfig
     [JsonPropertyName("flavour")]
     public string Flavour { get; set; } = "LBU-DS-ServiceDesk";
 
-    [JsonPropertyName("keyFile")]
-    public string KeyFile { get; set; } = "";
-
-    [JsonPropertyName("tokenFile")]
-    public string TokenFile { get; set; } = "";
-
     // PLATFORM NOTE: DPAPI is Windows-only. For macOS port replace with Keychain.
     [JsonPropertyName("token_encrypted")]
     public string TokenEncrypted { get; set; } = "";
@@ -40,6 +34,10 @@ public class AppConfig
 
     [JsonPropertyName("app_repo_path")]
     public string AppRepoPath { get; set; } = "service-delivery/pandatools";
+
+    // ── Token expiry warning ──────────────────────────────────────────
+    [JsonPropertyName("token_expiry_warn_days")]
+    public int TokenExpiryWarnDays { get; set; } = 14;
 
     // ── Default browser (used for url type items) ─────────────────────
     [JsonPropertyName("url_browser_name")]
