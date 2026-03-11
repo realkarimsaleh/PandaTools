@@ -1,6 +1,6 @@
 # PandaTools Changelog
 
-## [2.1.0] - 11-03-26
+## [2.1.0] - 11/03/26
 ### Added
 - **Multi-URL items** - `url` and `incognito` items now support a `values` array to open
   multiple URLs in a single click
