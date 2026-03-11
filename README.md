@@ -101,12 +101,13 @@ A flavour file defines sections and items that appear in the tray menu.
           "runas_profile": "Workstation Admin"
         },
         {
-          "label": "Portal + Timetable (Workstation Admin)",
+          "label": "Two Sites (Workstation Admin)",
           "type": "url",
           "runas_profile": "Workstation Admin",
-          "values": [
-            "https://portal.leedsbeckett.ac.uk/",
-            "https://timetable.leedsbeckett.ac.uk/"
+          "values":
+          [
+            "https://site-one.example.com/",
+            "https://site-two.example.com/"
           ]
         },
         {
@@ -118,7 +119,8 @@ A flavour file defines sections and items that appear in the tray menu.
           "label": "Two Sites (incognito, Workstation Admin)",
           "type": "incognito",
           "runas_profile": "Workstation Admin",
-          "values": [
+          "values":
+          [
             "https://site-one.example.com/",
             "https://site-two.example.com/"
           ]
@@ -131,7 +133,7 @@ A flavour file defines sections and items that appear in the tray menu.
       "items":
       [
         {
-          "label": "My Script",
+          "label": "Example Script",
           "type": "script",
           "projectId": 000,
           "filePath": "Scripts/MyScript.ps1",
