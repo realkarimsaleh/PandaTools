@@ -3,11 +3,14 @@ using System.Windows.Forms;
 
 public class TrayContext : ApplicationContext
 {
-    private readonly NotifyIcon _trayIcon;
-    private SynchronizationContext? _syncCtx;
+    private readonly NotifyIcon        _trayIcon;
+    private          SynchronizationContext? _syncCtx;
+    private static   TrayContext?      _instance;
 
     public TrayContext()
     {
+        _instance = this;
+
         ConfigLoader.Load();
         TokenManager.Reset();
 
@@ -40,6 +43,13 @@ public class TrayContext : ApplicationContext
             _syncCtx?.Post(_ => RebuildMenu(), null);
 
         _ = Updater.CheckAsync(silent: true);
+        _ = TokenExpiryChecker.CheckAsync();
+    }
+
+    // ── Balloon helper - callable from anywhere ───────────────────────
+    public static void ShowBalloon(string title, string text, ToolTipIcon icon)
+    {
+        _instance?._trayIcon.ShowBalloonTip(6000, title, text, icon);
     }
 
     private static void ShowFirstRunTokenDialog()
@@ -90,11 +100,11 @@ public class TrayContext : ApplicationContext
 
         var txt = new TextBox
         {
-            Left            = 16, Top = 143, Width = 460, Height = 26,
+            Left                  = 16, Top = 143, Width = 460, Height = 26,
             UseSystemPasswordChar = false,
-            Font            = new Font("Segoe UI", 9.5f),
-            BorderStyle     = BorderStyle.FixedSingle,
-            PlaceholderText = "glpat-xxxxxxxxxxxxxxxxxxxx"
+            Font                  = new Font("Segoe UI", 9.5f),
+            BorderStyle           = BorderStyle.FixedSingle,
+            PlaceholderText       = "glpat-xxxxxxxxxxxxxxxxxxxx"
         };
         frm.Controls.Add(txt);
 
