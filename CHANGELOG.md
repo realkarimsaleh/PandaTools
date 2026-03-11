@@ -1,5 +1,30 @@
 # PandaTools Changelog
 
+## [2.0.3] - 11/03/26
+### Added
+- `url` type items now support `runas_profile` - open URLs as a different domain user
+  via the configured RunAs profile, with optional stored or prompted credentials
+- `url` and `incognito` type items now support a `values` array for opening multiple
+  URLs in a single click (e.g. open two tools together under the same RunAs profile)
+- Separate **Default** browser setting for `url` type items (`url_browser_name` /
+  `url_browser_path`) - independently configurable from the incognito browser
+- Browser settings group in Settings redesigned into two clearly labelled rows:
+  **Default** (for `url` items) and **Incognito** (for `incognito` items), separated
+  by a visual divider
+
+### Changed
+- `AppConfig` gains two new fields: `url_browser_name` and `url_browser_path` -
+  existing configs default to `"default"` (system browser) with no breaking change
+- RunAs Profiles **Add / Save / Delete** buttons are now left-aligned with the
+  field inputs above them rather than sitting at the left edge of the panel
+- `FlavourItem` gains a `values` property (`List<string>`) - `value` (single string)
+  remains fully supported alongside it for backwards compatibility
+
+### Fixed
+- `url` items with `runas_profile` set but no explicit browser path now fall back
+  to Edge (always present on managed Windows) instead of silently failing
+
+
 ## [2.0.2] - 11/03/26
 ### Changed
 Updated the default **RunAs** profile so the `Workstation Admin` username is now blank by default,

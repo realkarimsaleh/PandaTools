@@ -18,7 +18,9 @@ PandaTools provides quick access to web tools, network utilities, and PowerShell
 - Automatic update checker on startup - prompts when a newer release is available on GitLab
 - **DPAPI-encrypted GitLab API token** - token is encrypted per-user via Windows DPAPI, never stored as plain text
 - **First-time setup wizard** - prompts for API token on first launch and encrypts it immediately
-- Private/incognito browser launcher with support for Chrome, Edge, Firefox, Brave, or custom browser
+- **Configurable browsers** - independently choose which browser opens `url` and `incognito` items; supports Chrome, Edge, Firefox, Brave, or a custom path
+- **Multi-URL items** - open multiple URLs in a single click using the `values` array on `url` or `incognito` items
+- **RunAs for browser items** - `url` and `incognito` items support `runas_profile` to open in a different domain account
 
 ---
 
@@ -93,9 +95,33 @@ A flavour file defines sections and items that appear in the tray menu.
           "value": "https://www.leedsbeckett.ac.uk/staffsite/"
         },
         {
+          "label": "Staff Site (Workstation Admin)",
+          "type": "url",
+          "value": "https://www.leedsbeckett.ac.uk/staffsite/",
+          "runas_profile": "Workstation Admin"
+        },
+        {
+          "label": "Portal + Timetable (Workstation Admin)",
+          "type": "url",
+          "runas_profile": "Workstation Admin",
+          "values": [
+            "https://portal.leedsbeckett.ac.uk/",
+            "https://timetable.leedsbeckett.ac.uk/"
+          ]
+        },
+        {
           "label": "Google (incognito)",
           "type": "incognito",
           "value": "https://google.com/"
+        },
+        {
+          "label": "Two Sites (incognito, Workstation Admin)",
+          "type": "incognito",
+          "runas_profile": "Workstation Admin",
+          "values": [
+            "https://site-one.example.com/",
+            "https://site-two.example.com/"
+          ]
         }
       ]
     },
@@ -144,13 +170,31 @@ A flavour file defines sections and items that appear in the tray menu.
 
 | Type         | Description                                                        |
 |--------------|--------------------------------------------------------------------|
-| `url`        | Opens URL in default browser                                       |
-| `incognito`  | Opens URL in private/incognito browser window                      |
+| `url`        | Opens URL in the configured default browser                        |
+| `incognito`  | Opens URL in the configured private/incognito browser              |
 | `app`        | Launches a local application (use `admin: true` for UAC elevation) |
 | `runas`      | Launches as a different domain user via a named RunAs profile      |
 | `powershell` | Runs an inline PowerShell command                                  |
 | `script`     | Fetches and runs a `.ps1` from GitLab (cached by commit hash)      |
 | `exe`        | Direct `.exe` launch (legacy - prefer `app`)                       |
+| `explorer`   | Opens a file or folder path in Windows Explorer                    |
+
+### Item Fields
+
+| Field           | Type       | Applies to                      | Description                                                                 |
+|-----------------|------------|---------------------------------|-----------------------------------------------------------------------------|
+| `label`         | `string`   | all                             | Menu item display text                                                      |
+| `type`          | `string`   | all                             | Item type (see above)                                                       |
+| `value`         | `string`   | all except `script`             | Single URL, path, or command                                                |
+| `values`        | `string[]` | `url`, `incognito`              | Multiple URLs - opens all in one click, password prompted once if needed    |
+| `runas_profile` | `string`   | `url`, `incognito`, `runas`     | Named RunAs profile to launch as a different domain user                    |
+| `arguments`     | `string`   | `app`, `exe`, `runas`           | Extra command-line arguments appended after `value`                         |
+| `admin`         | `bool`     | `app`                           | Triggers UAC elevation when `true`                                          |
+| `projectId`     | `int`      | `script`                        | GitLab project ID containing the script                                     |
+| `filePath`      | `string`   | `script`                        | Path to the `.ps1` file within the GitLab project                           |
+| `branch`        | `string`   | `script`                        | Branch to fetch the script from (default: `main`)                           |
+
+> **Multi-URL + RunAs:** When `values` is used with `runas_profile` and no password is stored, the password prompt appears **once** and is reused for all URLs in the array.
 
 ---
 
@@ -158,16 +202,19 @@ A flavour file defines sections and items that appear in the tray menu.
 
 Access via **right-click → Settings**.
 
-| Setting         | Description                                             |
-|-----------------|---------------------------------------------------------|
-| GitLab Server   | Base URL of your GitLab instance                        |
-| Project ID      | GitLab project ID used for flavour polling              |
-| Update Token    | Enter a new token to re-encrypt and save                |
-| Active Flavour  | Switch between available flavour JSON files             |
-| Manual Mode     | Disables automatic GitLab flavour polling               |
-| Poll Interval   | How often (seconds) to check GitLab for flavour updates |
-| RunAs Profiles  | Named credential profiles used by `runas` menu items    |
-| Private Browser | Browser to use for `incognito` type items               |
+| Setting             | Description                                                                       |
+|---------------------|-----------------------------------------------------------------------------------|
+| GitLab Server       | Base URL of your GitLab instance                                                  |
+| Project ID          | GitLab project ID used for flavour polling                                        |
+| Update Token        | Enter a new token to re-encrypt and save                                          |
+| Active Flavour      | Switch between available flavour JSON files                                       |
+| Manual Mode         | Disables automatic GitLab flavour polling                                         |
+| Poll Interval       | How often (seconds) to check GitLab for flavour updates                           |
+| Browser → Default   | Browser used for `url` type items (Default, Chrome, Edge, Firefox, Brave, Custom) |
+| Browser → Incognito | Browser used for `incognito` type items                                           |
+| RunAs Profiles      | Named credential profiles used by `runas`, `url`, and `incognito` items           |
+
+> **Browser and RunAs:** When a `url` or `incognito` item has a `runas_profile`, the configured browser for that type is launched as the specified user. If **Default** is selected and a RunAs profile is in use, PandaTools will automatically locate an installed browser (Edge → Chrome → Firefox → Brave) since an explicit path is required for credential passing.
 
 ---
 
@@ -212,7 +259,6 @@ PandaTools/
 ---
 
 ## Building
-
 Releases are built and published automatically via GitLab CI when a version tag (e.g. `v2.0.0`) is pushed.
 
 To build manually:
@@ -244,5 +290,4 @@ Output: `./installer_out/PandaToolsSetup.exe`
 ---
 
 ## Changelog
-
 See [CHANGELOG.md](CHANGELOG.md) for version history.
