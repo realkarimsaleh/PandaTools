@@ -1,5 +1,25 @@
 # PandaTools Changelog
 
+## [2.2.0] - 12/03/26
+### Added
+- **Token expiry notifications** - a tray balloon is shown on startup if the GitLab
+  token is expired or within the warning threshold
+- **Check Token Expiry button** - Settings → Connection now has a button to manually
+  check and display token expiry, also triggering a tray balloon with the result
+- **Configurable expiry warning threshold** - Settings → Advanced → Token Warn Days
+  controls how many days before expiry the warning balloon appears (default: 14)
+
+### Changed
+- **Token storage simplified** - legacy AES key-file/token-file decryption path removed;
+  DPAPI (`token_encrypted`) is now the sole token mechanism
+- **Settings → Connection cleaned up** - Key File and Token File fields removed as they
+  are no longer used; token management is now purely DPAPI-based
+
+### Removed
+- `keyFile` and `tokenFile` fields from `AppConfig` and all references in `TokenManager`
+- Legacy PowerShell AES decryption from the active `GetToken`/`HasToken`/`SaveToken`
+  paths (`LegacyDecrypt` retained as a standalone migration helper only)
+
 ## [2.1.0] - 11/03/26
 ### Added
 - **Multi-URL items** - `url` and `incognito` items now support a `values` array to open
