@@ -1,0 +1,25 @@
+# Build output
+bin/
+obj/
+Debug/
+obj/Debug/
+.cache/
+*.cache
+*.exe
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docview
+*.exe
+
+# NuGet
+*.nupkg
+packages/
+project.lock.json
+
+# OS
+.DS_Store
+Thumbs.db
