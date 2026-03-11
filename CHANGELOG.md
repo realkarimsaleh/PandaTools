@@ -1,5 +1,22 @@
 # PandaTools Changelog
 
+## [2.1.0] - 11-03-26
+### Added
+- **Multi-URL items** - `url` and `incognito` items now support a `values` array to open
+  multiple URLs in a single click
+- **RunAs for browser items** - `url` and `incognito` items now support `runas_profile`
+  to open in a different domain account
+- **Single password prompt** - when using `runas_profile` with multiple `values`, the
+  password is prompted once and reused for all URLs in the array
+- **Configurable update checker** - App Project ID and App Repo Path are now editable in
+  Settings → Advanced, allowing the update checker to follow the app if the repo moves
+- **Independent browser selection** - `url` and `incognito` items each have their own
+  configurable browser in Settings → Browser
+
+### Changed
+- Settings label alignment - all field labels now left-align their first letters
+  consistently across Connection, Browser, Advanced, and RunAs Profiles groups
+
 ## [2.0.3] - 11/03/26
 ### Added
 - `url` type items now support `runas_profile` - open URLs as a different domain user
