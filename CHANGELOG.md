@@ -1,5 +1,24 @@
 # PandaTools Changelog
 
+## [2.3.2] - 13/03/26
+### Added
+- **Update cache** - if a cached installer is found for the available version,
+  PandaTools will offer to reuse it instead of re-downloading, saving time on
+  repeated update attempts
+- **Clear Update Cache** - a new button in Settings → Advanced allows cached
+  installer files to be deleted from the temp directory at any time
+
+### Changed
+- **Check Token Expiry moved inline** - the expiry check button now sits alongside
+  the Update Token button in the Connection section rather than on its own row,
+  keeping all token actions in one place
+
+### Fixed
+- **In-place update failing with "file is being used by another process"** - the
+  download stream is now fully closed and disposed before the installer process is
+  launched, preventing the file lock error on update
+
+
 ## [2.3.1] - 13/03/26
 ### Fixed
 - **Linguistic** - Fixed some linguistic errors.

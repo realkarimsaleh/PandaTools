@@ -181,7 +181,6 @@ public static class Updater
             using var response = await Http.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead);
             response.EnsureSuccessStatusCode();
 
-
             //######################################
             //Stream to file - scoped block ensures fs is fully closed before Process.Start is called below
             //######################################
