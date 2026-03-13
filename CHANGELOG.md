@@ -1,5 +1,9 @@
 # PandaTools Changelog
 
+## [2.3.1] - 13/03/26
+### Fixed
+- **Linguistic** - Fixed some linguistic errors.
+
 ## [2.3.0] - 13/03/26
 ### Added
 - **Password prompt shows app name in title bar** - the title bar of the credential
