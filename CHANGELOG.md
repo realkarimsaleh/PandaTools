@@ -1,5 +1,9 @@
 # PandaTools Changelog
 
+## [2.3.3] - 13/03/26
+### Fixed
+- **Bug Fixes**
+
 ## [2.3.2] - 13/03/26
 ### Added
 - **Update cache** - if a cached installer is found for the available version,
