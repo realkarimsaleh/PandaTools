@@ -186,7 +186,7 @@ A flavour file defines sections and items that appear in the tray menu.
 
 ### Item Fields
 
-| Field           | Type       | Applies to Description                                                                                 |
+| Field           | Type       | Applies to                  |Description                                                               |
 |-----------------|------------|-----------------------------|--------------------------------------------------------------------------|
 | `label`         | `string`   | all                         | Menu item display text                                                   |
 | `type`          | `string`   | all                         | Item type (see above)                                                    |
@@ -207,11 +207,11 @@ A flavour file defines sections and items that appear in the tray menu.
 
 RunAs profiles allow tools to be launched as a different domain account. Configure them under **Settings → RunAs Profiles**.
 
-| Field      | Description                                                                                   |
-|------------|-----------------------------------------------------------------------------------------------|
-| Name       | Profile identifier referenced by `runas_profile` in flavour JSON                              |
-| Username   | Domain account in `DOMAIN\user` or `user@domain` format                                       |
-| Password   | Optional - leave blank to be prompted at launch; if set, encrypted with DPAPI before saving   |
+| Field      | Description                                                                                 |
+|------------|---------------------------------------------------------------------------------------------|
+| Name       | Profile identifier referenced by `runas_profile` in flavour JSON                            |
+| Username   | Domain account in `DOMAIN\user` or `user@domain` format                                     |
+| Password   | Optional - leave blank to be prompted at launch; if set, encrypted with DPAPI before saving |
 
 Password behaviour at launch:
 - **No saved password** - a prompt appears each time; the password is used for that session only and never stored
