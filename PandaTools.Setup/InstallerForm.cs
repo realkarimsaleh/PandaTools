@@ -1,13 +1,16 @@
+using System.Runtime.Versioning;
 using System;
 using System.Drawing;
 using System.IO;
 using System.IO.Compression;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
+[SupportedOSPlatform("windows")]
 public class InstallerForm : Form
 {
     private const string AppName   = "PandaTools";
@@ -35,27 +38,31 @@ public class InstallerForm : Form
         BackColor       = Color.White;
         Font            = new Font("Segoe UI", 9f);
 
-        // ── Header ────────────────────────────────────────────────────
+        //######################################
+        //Header
+        //######################################
         var header = new Panel { Dock = DockStyle.Top, Height = 72, BackColor = Color.FromArgb(24, 24, 24) };
         header.Controls.Add(new Label
         {
-            Text = $"🐼  {AppName}", ForeColor = Color.White,
-            Font = new Font("Segoe UI", 15f, FontStyle.Bold),
-            Bounds = new Rectangle(18, 12, 380, 32), AutoSize = false
+            Text      = $"🐼  {AppName}", ForeColor = Color.White,
+            Font      = new Font("Segoe UI", 15f, FontStyle.Bold),
+            Bounds    = new Rectangle(18, 12, 380, 32), AutoSize = false
         });
         header.Controls.Add(new Label
         {
-            Text = $"Version {AppVersion}   ·   {Publisher}",
+            Text      = $"Version {AppVersion}   ·   {Publisher}",
             ForeColor = Color.FromArgb(160, 160, 160),
-            Font = new Font("Segoe UI", 8.5f),
-            Bounds = new Rectangle(20, 46, 400, 18), AutoSize = false
+            Font      = new Font("Segoe UI", 8.5f),
+            Bounds    = new Rectangle(20, 46, 400, 18), AutoSize = false
         });
 
-        // ── Install path ──────────────────────────────────────────────
+        //######################################
+        //Install path
+        //######################################
         var lblPath = new Label { Text = "Install location:", Bounds = new Rectangle(20, 90, 200, 20) };
         _txtPath = new TextBox
         {
-            Text = $@"C:\Program Files\{AppName}",
+            Text   = $@"C:\Program Files\{AppName}",
             Bounds = new Rectangle(20, 110, 382, 24)
         };
         _btnBrowse = new Button { Text = "Browse", Bounds = new Rectangle(408, 109, 84, 26) };
@@ -63,36 +70,42 @@ public class InstallerForm : Form
         {
             using var d = new FolderBrowserDialog
             {
-                Description = "Select install folder",
-                SelectedPath = _txtPath.Text,
+                Description            = "Select install folder",
+                SelectedPath           = _txtPath.Text,
                 UseDescriptionForTitle = true
             };
             if (d.ShowDialog() == DialogResult.OK) _txtPath.Text = d.SelectedPath;
         };
 
-        // ── Options ───────────────────────────────────────────────────
-        _chkDesktop   = new CheckBox { Text = "Create Desktop shortcut",            Bounds = new Rectangle(20, 150, 300, 22), Checked = true  };
-        _chkStartMenu = new CheckBox { Text = "Create Start Menu shortcut",         Bounds = new Rectangle(20, 172, 300, 22), Checked = true  };
-        _chkStartup   = new CheckBox { Text = "Run PandaTools at Windows startup",  Bounds = new Rectangle(20, 194, 300, 22), Checked = false };
+        //######################################
+        //Options
+        //######################################
+        _chkDesktop   = new CheckBox { Text = "Create Desktop shortcut",           Bounds = new Rectangle(20, 150, 300, 22), Checked = true  };
+        _chkStartMenu = new CheckBox { Text = "Create Start Menu shortcut",        Bounds = new Rectangle(20, 172, 300, 22), Checked = true  };
+        _chkStartup   = new CheckBox { Text = "Run PandaTools at Windows startup", Bounds = new Rectangle(20, 194, 300, 22), Checked = false };
 
-        // ── Progress ──────────────────────────────────────────────────
+        //######################################
+        //Progress
+        //######################################
         _progress = new ProgressBar
         {
-            Bounds = new Rectangle(20, 234, 472, 18),
+            Bounds  = new Rectangle(20, 234, 472, 18),
             Minimum = 0, Maximum = 100, Value = 0,
-            Style = ProgressBarStyle.Continuous
+            Style   = ProgressBarStyle.Continuous
         };
         _lblStatus = new Label
         {
-            Text = "Ready to install.",
-            Bounds = new Rectangle(20, 256, 472, 20),
+            Text      = "Ready to install.",
+            Bounds    = new Rectangle(20, 256, 472, 20),
             ForeColor = Color.Gray
         };
 
-        // ── Buttons ───────────────────────────────────────────────────
+        //######################################
+        //Buttons
+        //######################################
         _btnInstall = new Button
         {
-            Text = "Install", Bounds = new Rectangle(308, 298, 90, 32),
+            Text      = "Install", Bounds = new Rectangle(308, 298, 90, 32),
             BackColor = Color.FromArgb(0, 120, 212), ForeColor = Color.White,
             FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9f, FontStyle.Bold)
         };
@@ -112,7 +125,6 @@ public class InstallerForm : Form
 
     private async void OnInstall(object? sender, EventArgs e)
     {
-        // Capture UI values on the UI thread before Task.Run
         var installDir  = _txtPath.Text.Trim();
         var mkDesktop   = _chkDesktop.Checked;
         var mkStartMenu = _chkStartMenu.Checked;
@@ -122,8 +134,22 @@ public class InstallerForm : Form
         try
         {
             await Task.Run(() => RunInstall(installDir, mkDesktop, mkStartMenu, mkStartup));
-            MessageBox.Show($"{AppName} installed successfully.\n\nLocation: {installDir}",
-                $"{AppName} Setup", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+            var launch = MessageBox.Show(
+                $"{AppName} installed successfully.\n\nLocation: {installDir}\n\n" +
+                $"Would you like to launch {AppName} now?",
+                $"{AppName} Setup", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+
+            if (launch == DialogResult.Yes)
+            {
+                var mainExe = Path.Combine(installDir, $"{AppName}.exe");
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName        = mainExe,
+                    UseShellExecute = true
+                });
+            }
+
             Close();
         }
         catch (Exception ex)
@@ -137,11 +163,34 @@ public class InstallerForm : Form
 
     private void RunInstall(string installDir, bool mkDesktop, bool mkStartMenu, bool mkStartup)
     {
-        // 1. Create directory
+        //######################################
+        //STEP 0 Close any running PandaTools instance
+        //######################################
+        SetStatus("Checking for a running instance...", 2);
+        var procs = Process.GetProcessesByName("PandaTools");
+        foreach (var p in procs)
+        {
+            try
+            {
+                p.CloseMainWindow();
+                if (!p.WaitForExit(4000))
+                    p.Kill();
+                p.Dispose();
+            }
+            catch { /* already gone */ }
+        }
+        if (procs.Length > 0)
+            Thread.Sleep(1200);
+
+        //######################################
+        //STEP 1 Create directory
+        //######################################
         SetStatus("Creating install directory...", 5);
         Directory.CreateDirectory(installDir);
 
-        // 2. Find and extract embedded payload.zip
+        //######################################
+        //STEP 2 Find and extract embedded payload.zip
+        //######################################
         SetStatus("Extracting files...", 10);
         var asm          = Assembly.GetExecutingAssembly();
         var resourceName = Array.Find(
@@ -181,12 +230,16 @@ public class InstallerForm : Form
         }
         finally { File.Delete(tempZip); }
 
-        // 3. Copy this setup exe into install dir so it can act as uninstaller
+        //######################################
+        //STEP 3 Copy this setup exe into install dir so it can act as uninstaller
+        //######################################
         SetStatus("Copying uninstaller...", 62);
         var setupTarget = Path.Combine(installDir, "PandaToolsSetup.exe");
         File.Copy(Environment.ProcessPath!, setupTarget, overwrite: true);
 
-        // 4. Shortcuts
+        //######################################
+        //STEP 4 Shortcuts
+        //######################################
         var mainExe  = Path.Combine(installDir, $"{AppName}.exe");
         var iconPath = Path.Combine(installDir, @"assets\PandaTools.ico");
 
@@ -205,7 +258,9 @@ public class InstallerForm : Form
                     $"{AppName}.lnk"));
         }
 
-        // 5. Startup
+        //######################################
+        //STEP 5 Startup
+        //######################################
         if (mkStartup)
         {
             SetStatus("Configuring startup...", 82);
@@ -214,7 +269,9 @@ public class InstallerForm : Form
             runKey?.SetValue(AppName, $"\"{mainExe}\"");
         }
 
-        // 6. Register in Add/Remove Programs
+        //######################################
+        //STEP 6 Register in Add/Remove Programs
+        //######################################
         SetStatus("Registering application...", 90);
         using var uninstKey = Registry.LocalMachine.CreateSubKey(
             $@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{AppName}");
@@ -252,8 +309,8 @@ public class InstallerForm : Form
     private void SetControls(bool on)
     {
         if (InvokeRequired) { Invoke(() => SetControls(on)); return; }
-        _btnInstall.Enabled = on; _btnCancel.Enabled = on;
-        _btnBrowse.Enabled  = on; _txtPath.Enabled   = on;
-        _chkDesktop.Enabled = on; _chkStartMenu.Enabled = on; _chkStartup.Enabled = on;
+        _btnInstall.Enabled   = on; _btnCancel.Enabled    = on;
+        _btnBrowse.Enabled    = on; _txtPath.Enabled      = on;
+        _chkDesktop.Enabled   = on; _chkStartMenu.Enabled = on; _chkStartup.Enabled = on;
     }
 }

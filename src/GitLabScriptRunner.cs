@@ -64,6 +64,7 @@ public static class GitLabScriptRunner
                 await File.WriteAllTextAsync(cachedHash, latest);
                 Log("Downloaded and cached successfully.");
             }
+            
             else { Log("Hash matches - using cached version."); }
 
             if (diag)
@@ -77,6 +78,7 @@ public static class GitLabScriptRunner
                 UseShellExecute = true
             });
         }
+
         catch (Exception ex)
         {
             Log($"\nFAILED: {ex.Message}");
@@ -111,6 +113,7 @@ public static class GitLabScriptRunner
                 MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
+
         var files = Directory.GetFiles(CacheFolder);
         foreach (var f in files) File.Delete(f);
         MessageBox.Show($"Cleared {files.Length} cached file(s).", "PandaTools",

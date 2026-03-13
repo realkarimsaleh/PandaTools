@@ -54,7 +54,7 @@ public class UninstallerForm : Form
     {
         try
         {
-            // Read install location from registry
+            //Read install location from registry
             string installDir;
             using (var key = Registry.LocalMachine.OpenSubKey(
                 $@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{AppName}"))
@@ -63,15 +63,15 @@ public class UninstallerForm : Form
                     ?? $@"C:\Program Files\{AppName}";
             }
 
-            // Remove Start Menu shortcut
+            //Remove Start Menu shortcut
             TryDelete($@"C:\ProgramData\Microsoft\Windows\Start Menu\Programs\{AppName}.lnk");
 
-            // Remove Desktop shortcut
+            //Remove Desktop shortcut
             TryDelete(Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory),
                 $"{AppName}.lnk"));
 
-            // Remove startup registry entry
+            //Remove startup registry entry
             try
             {
                 using var runKey = Registry.CurrentUser.OpenSubKey(
@@ -80,16 +80,17 @@ public class UninstallerForm : Form
             }
             catch { /* not set */ }
 
-            // Remove Add/Remove Programs registry entry
+            //Remove Add/Remove Programs registry entry
             try
             {
                 Registry.LocalMachine.DeleteSubKey(
                     $@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{AppName}");
             }
+
             catch { /* already removed */ }
 
-            // Delete install folder via deferred cmd script (handles the
-            // case where this setup exe lives inside the install folder)
+            //Delete install folder via deferred cmd script (handles the
+            //case where this setup exe lives inside the install folder)
             var cleanup = Path.Combine(Path.GetTempPath(), "PandaToolsCleanup.cmd");
             File.WriteAllText(cleanup,
                 $"""
@@ -115,6 +116,7 @@ public class UninstallerForm : Form
 
             Close();
         }
+
         catch (Exception ex)
         {
             MessageBox.Show(

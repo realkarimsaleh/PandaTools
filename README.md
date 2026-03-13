@@ -1,6 +1,6 @@
 # PandaTools
 
-A Windows system tray utility for Digital Services colleagues at Leeds Beckett University.
+PandsTools is a Windows system tray prductivity utility
 PandaTools provides quick access to web tools, network utilities, and PowerShell scripts fetched live from GitLab - configured entirely through JSON flavour files with no recompilation needed.
 
 ---
@@ -11,6 +11,7 @@ PandaTools provides quick access to web tools, network utilities, and PowerShell
 - **Flavour system** - swap entire menu configurations via JSON files without rebuilding
 - Quick launch shortcuts for web tools, applications, and network utilities
 - **RunAs profiles** - launch tools as different domain accounts with optional stored credentials
+- **DPAPI-encrypted RunAs passwords** - saved RunAs profile passwords are encrypted per-user via Windows DPAPI, never stored as plain text
 - Live PowerShell script execution fetched directly from GitLab - always runs the latest version
 - Smart script caching - scripts are cached locally and only re-downloaded when the GitLab commit hash changes
 - Automatic fallback to cached scripts when GitLab is unreachable (off-network or no VPN)
@@ -21,6 +22,7 @@ PandaTools provides quick access to web tools, network utilities, and PowerShell
 - **Configurable browsers** - independently choose which browser opens `url` and `incognito` items; supports Chrome, Edge, Firefox, Brave, or a custom path
 - **Multi-URL items** - open multiple URLs in a single click using the `values` array on `url` or `incognito` items
 - **RunAs for browser items** - `url` and `incognito` items support `runas_profile` to open in a different domain account
+- **Single instance enforcement** - launching PandaTools while already running brings the existing tray instance to focus
 
 ---
 
@@ -39,8 +41,9 @@ PandaTools provides quick access to web tools, network utilities, and PowerShell
 ### 1. Install
 
 1. Download `PandaToolsSetup-vX.X.X.exe` from the [Releases](../../releases) page
-2. Run the installer - it extracts and launches PandaTools automatically
-3. PandaTools will appear in the system tray
+2. Run the installer - choose your install location, configure shortcuts, then click Install
+3. If PandaTools is already running the installer will detect it, offer to close it, and continue automatically
+4. Once complete, the installer offers to launch PandaTools immediately
 
 ### 2. First-Time Setup
 
@@ -90,14 +93,14 @@ A flavour file defines sections and items that appear in the tray menu.
       "items":
       [
         {
-          "label": "Staff Site",
+          "label": "Google",
           "type": "url",
-          "value": "https://www.leedsbeckett.ac.uk/staffsite/"
+          "value": "https://www.google.com"
         },
         {
-          "label": "Staff Site (Workstation Admin)",
+          "label": "Google (Workstation Admin)",
           "type": "url",
-          "value": "https://www.leedsbeckett.ac.uk/staffsite/",
+          "value": "https://www.google.com",
           "runas_profile": "Workstation Admin"
         },
         {
@@ -106,8 +109,8 @@ A flavour file defines sections and items that appear in the tray menu.
           "runas_profile": "Workstation Admin",
           "values":
           [
-            "https://site-one.example.com/",
-            "https://site-two.example.com/"
+            "https://google.com/",
+            "https://youtube.com/"
           ]
         },
         {
@@ -121,8 +124,8 @@ A flavour file defines sections and items that appear in the tray menu.
           "runas_profile": "Workstation Admin",
           "values":
           [
-            "https://site-one.example.com/",
-            "https://site-two.example.com/"
+            "https://google.com/",
+            "https://youtube.com/"
           ]
         }
       ]
@@ -183,20 +186,37 @@ A flavour file defines sections and items that appear in the tray menu.
 
 ### Item Fields
 
-| Field           | Type       | Applies to                      | Description                                                                 |
-|-----------------|------------|---------------------------------|-----------------------------------------------------------------------------|
-| `label`         | `string`   | all                             | Menu item display text                                                      |
-| `type`          | `string`   | all                             | Item type (see above)                                                       |
-| `value`         | `string`   | all except `script`             | Single URL, path, or command                                                |
-| `values`        | `string[]` | `url`, `incognito`              | Multiple URLs - opens all in one click, password prompted once if needed    |
-| `runas_profile` | `string`   | `url`, `incognito`, `runas`     | Named RunAs profile to launch as a different domain user                    |
-| `arguments`     | `string`   | `app`, `exe`, `runas`           | Extra command-line arguments appended after `value`                         |
-| `admin`         | `bool`     | `app`                           | Triggers UAC elevation when `true`                                          |
-| `projectId`     | `int`      | `script`                        | GitLab project ID containing the script                                     |
-| `filePath`      | `string`   | `script`                        | Path to the `.ps1` file within the GitLab project                           |
-| `branch`        | `string`   | `script`                        | Branch to fetch the script from (default: `main`)                           |
+| Field           | Type       | Applies to Description                                                                                 |
+|-----------------|------------|-----------------------------|--------------------------------------------------------------------------|
+| `label`         | `string`   | all                         | Menu item display text                                                   |
+| `type`          | `string`   | all                         | Item type (see above)                                                    |
+| `value`         | `string`   | all except `script`         | Single URL, path, or command                                             |
+| `values`        | `string[]` | `url`, `incognito`          | Multiple URLs - opens all in one click, password prompted once if needed |
+| `runas_profile` | `string`   | `url`, `incognito`, `runas` | Named RunAs profile to launch as a different domain user                 |
+| `arguments`     | `string`   | `app`, `exe`, `runas`       | Extra command-line arguments appended after `value`                      |
+| `admin`         | `bool`     | `app`                       | Triggers UAC elevation when `true`                                       |
+| `projectId`     | `int`      | `script`                    | GitLab project ID containing the script                                  |
+| `filePath`      | `string`   | `script`                    | Path to the `.ps1` file within the GitLab project                        |
+| `branch`        | `string`   | `script`                    | Branch to fetch the script from (default: `main`)                        |
 
 > **Multi-URL + RunAs:** When `values` is used with `runas_profile` and no password is stored, the password prompt appears **once** and is reused for all URLs in the array.
+
+---
+
+## RunAs Profiles
+
+RunAs profiles allow tools to be launched as a different domain account. Configure them under **Settings → RunAs Profiles**.
+
+| Field      | Description                                                                                   |
+|------------|-----------------------------------------------------------------------------------------------|
+| Name       | Profile identifier referenced by `runas_profile` in flavour JSON                              |
+| Username   | Domain account in `DOMAIN\user` or `user@domain` format                                       |
+| Password   | Optional - leave blank to be prompted at launch; if set, encrypted with DPAPI before saving   |
+
+Password behaviour at launch:
+- **No saved password** - a prompt appears each time; the password is used for that session only and never stored
+- **Saved password** - used automatically; if it is wrong, a re-entry prompt appears and you are offered the option to update the saved value
+- The credential prompt displays the **item label** in the title bar and includes a **👁 toggle** to show or hide the password while typing
 
 ---
 
@@ -212,6 +232,7 @@ Access via **right-click → Settings**.
 | Active Flavour      | Switch between available flavour JSON files                                       |
 | Manual Mode         | Disables automatic GitLab flavour polling                                         |
 | Poll Interval       | How often (seconds) to check GitLab for flavour updates                           |
+| Token Warn Days     | Days before token expiry to show the tray warning balloon (default: 14)           |
 | Browser → Default   | Browser used for `url` type items (Default, Chrome, Edge, Firefox, Brave, Custom) |
 | Browser → Incognito | Browser used for `incognito` type items                                           |
 | RunAs Profiles      | Named credential profiles used by `runas`, `url`, and `incognito` items           |
@@ -261,6 +282,7 @@ PandaTools/
 ---
 
 ## Building
+
 Releases are built and published automatically via GitLab CI when a version tag (e.g. `v2.0.0`) is pushed.
 
 To build manually:
@@ -292,4 +314,5 @@ Output: `./installer_out/PandaToolsSetup.exe`
 ---
 
 ## Changelog
+
 See [CHANGELOG.md](CHANGELOG.md) for version history.

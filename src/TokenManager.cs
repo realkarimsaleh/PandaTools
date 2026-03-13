@@ -54,10 +54,13 @@ public static class TokenManager
         return !string.IsNullOrWhiteSpace(cfg.TokenEncrypted);
     }
 
-    // ── Legacy AES/PowerShell decrypt (one-time migration use only) ────
-    // Call manually if migrating an old key+token file pair to DPAPI:
-    //   var plain = TokenManager.LegacyDecrypt(keyFilePath, tokenFilePath);
-    //   if (plain != null) TokenManager.SaveToken(plain);
+    //######################################
+    //Legacy AES/PowerShell decrypt (one-time migration use only)
+    //######################################
+
+    //Call manually if migrating an old key+token file pair to DPAPI:
+    //var plain = TokenManager.LegacyDecrypt(keyFilePath, tokenFilePath);
+    //if (plain != null) TokenManager.SaveToken(plain);
     public static string? LegacyDecrypt(string keyFile, string tokenFile)
     {
         const string PS51 = @"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe";

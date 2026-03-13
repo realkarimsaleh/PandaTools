@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json.Serialization;
 using System.Collections.Generic;
 
@@ -9,7 +11,6 @@ public class AppConfig
     [JsonPropertyName("flavour")]
     public string Flavour { get; set; } = "LBU-DS-ServiceDesk";
 
-    // PLATFORM NOTE: DPAPI is Windows-only. For macOS port replace with Keychain.
     [JsonPropertyName("token_encrypted")]
     public string TokenEncrypted { get; set; } = "";
 
@@ -28,32 +29,27 @@ public class AppConfig
     [JsonPropertyName("flavour_poll_seconds")]
     public int FlavourPollSeconds { get; set; } = 300;
 
-    // ── App update checker ────────────────────────────────────────────
     [JsonPropertyName("app_project_id")]
     public int AppProjectId { get; set; } = 526;
 
     [JsonPropertyName("app_repo_path")]
     public string AppRepoPath { get; set; } = "service-delivery/pandatools";
 
-    // ── Token expiry warning ──────────────────────────────────────────
     [JsonPropertyName("token_expiry_warn_days")]
     public int TokenExpiryWarnDays { get; set; } = 14;
 
-    // ── Default browser (used for url type items) ─────────────────────
     [JsonPropertyName("url_browser_name")]
     public string UrlBrowserName { get; set; } = "default";
 
     [JsonPropertyName("url_browser_path")]
     public string UrlBrowserPath { get; set; } = "";
 
-    // ── Incognito browser (used for incognito type items) ─────────────
     [JsonPropertyName("browser_name")]
     public string BrowserName { get; set; } = "default";
 
     [JsonPropertyName("browser_path")]
     public string BrowserPath { get; set; } = "";
 
-    // ── Default RunAs profiles - edit these before compiling ──────────
     [JsonPropertyName("runas_profiles")]
     public List<RunAsProfile> RunAsProfiles { get; set; } = new()
     {
@@ -68,9 +64,67 @@ public class RunAsProfile
 
     [JsonPropertyName("username")]
     public string Username { get; set; } = "";
-
-    [JsonPropertyName("password")]
+    
+    //######################################
+    //In-memory plain text only, never written to disk
+    //######################################
+    [JsonIgnore]
     public string Password { get; set; } = "";
+
+    //######################################
+    //DPAPI-encrypted blob, what actually gets stored in JSON
+    //######################################
+    [JsonPropertyName("password_encrypted")]
+    public string PasswordEncrypted { get; set; } = "";
+
+    //######################################
+    //Legacy plain-text field, read-only for one-time migration
+    //######################################
+    //Once migrated, ConfigLoader.Save() will clear this automatically.
+    [JsonPropertyName("password")]
+    public string LegacyPassword { get; set; } = "";
+
+    ///<summary>
+    ///Fills <see cref="Password"/> from <see cref="PasswordEncrypted"/>.
+    ///Falls back to <see cref="LegacyPassword"/> for existing configs (auto-migrated on next save).
+    ///</summary>
+    public void DecryptPassword()
+    {
+        if (!string.IsNullOrEmpty(PasswordEncrypted))
+        {
+            try
+            {
+                var cipher = Convert.FromBase64String(PasswordEncrypted);
+                var plain  = ProtectedData.Unprotect(cipher, null, DataProtectionScope.CurrentUser);
+                Password   = Encoding.UTF8.GetString(plain);
+            }
+            catch { Password = ""; }
+        }
+        else if (!string.IsNullOrEmpty(LegacyPassword))
+        {
+            // Migrate: promote plain text to in-memory; ConfigLoader.Save() will encrypt.
+            Password = LegacyPassword;
+        }
+    }
+
+    ///<summary>
+    ///Encrypts <see cref="Password"/> into <see cref="PasswordEncrypted"/> and clears
+    ///<see cref="LegacyPassword"/> so plain text is never written back.
+    ///</summary>
+    public void EncryptPassword()
+    {
+        LegacyPassword = ""; // always clear legacy on save
+
+        if (string.IsNullOrEmpty(Password))
+        {
+            PasswordEncrypted = "";
+            return;
+        }
+
+        var plain  = Encoding.UTF8.GetBytes(Password);
+        var cipher = ProtectedData.Protect(plain, null, DataProtectionScope.CurrentUser);
+        PasswordEncrypted = Convert.ToBase64String(cipher);
+    }
 
     public override string ToString() => Name;
 }
@@ -111,7 +165,6 @@ public class FlavourItem
     [JsonPropertyName("value")]
     public string Value { get; set; } = "";
 
-    // Multi-URL support for url and incognito types
     [JsonPropertyName("values")]
     public List<string> Values { get; set; } = new();
 

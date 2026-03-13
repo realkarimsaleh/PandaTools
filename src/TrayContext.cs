@@ -46,7 +46,9 @@ public class TrayContext : ApplicationContext
         _ = TokenExpiryChecker.CheckAsync();
     }
 
-    // ── Balloon helper - callable from anywhere ───────────────────────
+    //######################################
+    //Balloon helper callable from anywhere
+    //######################################
     public static void ShowBalloon(string title, string text, ToolTipIcon icon)
     {
         _instance?._trayIcon.ShowBalloonTip(6000, title, text, icon);

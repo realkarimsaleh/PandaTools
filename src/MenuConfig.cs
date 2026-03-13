@@ -22,31 +22,22 @@ public static class MenuConfig
 {
     public static readonly List<MenuSection> Sections = new()
     {
-        //  Web Tools - internal dashboards and portals
+        //Web Tools, internal dashboards and portals
         new("🌐 Web Tools", new()
         {
-            new("Proxmox",          MenuItemType.Url, "https://192.168.1.5:8006"),
-            new("Portainer",        MenuItemType.Url, "http://192.168.1.10:9000"),
-            new("Home Assistant",   MenuItemType.Url, "http://homeassistant.local:8123"),
             new("UniFi Controller", MenuItemType.Url, "https://unifi.ui.com"),
         }),
 
-        //  Network - router and switch admin pages
-        new("🔧 Network", new()
-        {
-            new("Router Admin",     MenuItemType.Url, "http://192.168.1.1"),
-        }),
-
-        //  Local Scripts - PowerShell commands run locally
+        //Local Scripts. PowerShell commands run locally
         new("⚡ Local Scripts", new()
         {
             new("Flush DNS",        MenuItemType.PowerShell, "ipconfig /flushdns"),
             new("Restart Wi-Fi",    MenuItemType.PowerShell, "Restart-NetAdapter -Name 'Wi-Fi' -Confirm:$false"),
         }),
 
-        //  GitLab Scripts - fetched fresh from GitLab on click
-        //  ProjectId  : found in each repo under Settings > General
-        //  ScriptPath : path to the .ps1 relative to the repo root
+        //GitLab Scripts - fetched fresh from GitLab on click
+        //ProjectId  : found in each repo under Settings > General
+        //ScriptPath : path to the .ps1 relative to the repo root
         new("☁️ GitLab Scripts", new()
         {
             new("Panopto Delta Informant",
@@ -60,7 +51,7 @@ public static class MenuConfig
                 ScriptPath: "SCCMCollectionMembership-Utility.ps1"),
         }),
 
-        //  Applications - local app shortcuts
+        //Applications - local app shortcuts
         new("🗂️ Applications", new()
         {
             new("Notepad++",        MenuItemType.Exe, @"C:\Program Files\Notepad++\notepad++.exe"),

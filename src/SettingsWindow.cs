@@ -71,7 +71,9 @@ public class SettingsWindow : Form
 
         var y = 10;
 
-        // ── Version Banner ─────────────────────────────────────────────
+        //######################################
+        //Version banner
+        //######################################
         var appVersion     = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.0.0";
         var flavourVersion = ConfigLoader.FlavourConfig.Version;
 
@@ -80,6 +82,7 @@ public class SettingsWindow : Form
             Left = GrpL, Top = y, Width = GrpW, Height = 34,
             BackColor = Color.FromArgb(28, 28, 28)
         };
+
         pnlVersion.Controls.Add(new Label
         {
             Text      = $"🐼 PandaTools v{appVersion}",
@@ -87,6 +90,7 @@ public class SettingsWindow : Form
             ForeColor = Color.White, BackColor = Color.Transparent,
             Font      = new Font("Segoe UI", 9f, FontStyle.Bold)
         });
+
         pnlVersion.Controls.Add(new Label
         {
             Text      = $"Flavour: {cfg.Flavour} • v{flavourVersion}",
@@ -95,10 +99,13 @@ public class SettingsWindow : Form
             Font      = new Font("Segoe UI", 9f),
             TextAlign = ContentAlignment.MiddleRight
         });
+
         Controls.Add(pnlVersion);
         y += 42;
 
-        // ── Connection ─────────────────────────────────────────────────
+        //######################################
+        //Connection
+        //######################################
         var grpConn = MakeGroup("Connection", y, 168);
 
         grpConn.Controls.Add(MakeLabel("GitLab Server:", LblL, 22));
@@ -134,10 +141,10 @@ public class SettingsWindow : Form
         {
             var plain = _tokenPlainBox?.Text.Trim() ?? "";
             if (string.IsNullOrWhiteSpace(plain))
-            { Status("❌ Token field is empty - nothing updated."); return; }
+            { Status("❌ Token field is empty, nothing updated"); return; }
             TokenManager.SaveToken(plain);
             if (_tokenPlainBox != null) _tokenPlainBox.Text = "";
-            Status("✅ Token encrypted and saved.");
+            Status("✅ Token encrypted and saved");
         };
         grpConn.Controls.Add(btnUpdateToken);
 
@@ -160,7 +167,9 @@ public class SettingsWindow : Form
         Controls.Add(grpConn);
         y += 178;
 
-        // ── Flavour ─────────────────────────────────────────────────────
+        //######################################
+        //Flavour
+        //######################################
         var grpFlavour = MakeGroup("Flavour", y, 108);
 
         grpFlavour.Controls.Add(new Label
@@ -179,6 +188,7 @@ public class SettingsWindow : Form
             MaxDropDownItems = 15,
             DropDownWidth    = 300
         };
+
         RefreshFlavourCombo(cfg.Flavour);
         grpFlavour.Controls.Add(_flavourCombo);
 
@@ -207,9 +217,9 @@ public class SettingsWindow : Form
         btnFlavourRemove.Click += (_, _) =>
         {
             var sel = _flavourCombo?.SelectedItem?.ToString() ?? "";
-            if (string.IsNullOrEmpty(sel)) { Status("❌ No flavour selected."); return; }
+            if (string.IsNullOrEmpty(sel)) { Status("❌ No flavour selected"); return; }
             if (sel.Equals(ConfigLoader.AppConfig.Flavour, StringComparison.OrdinalIgnoreCase))
-            { Status("❌ Cannot remove the active flavour."); return; }
+            { Status("❌ Cannot remove the active flavour"); return; }
             if (MessageBox.Show($"Delete flavour '{sel}'?", "Confirm",
                 MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
             try
@@ -232,7 +242,7 @@ public class SettingsWindow : Form
 
         _manualCheck = new CheckBox
         {
-            Text    = "Manual mode - disable auto-updates from GitLab",
+            Text    = "Manual mode - Disable auto-updates from GitLab",
             Checked = cfg.ManualMode,
             Left = LblL, Top = 58, Width = GrpW - 20,
             Font    = new Font("Segoe UI", 9f)
@@ -249,7 +259,9 @@ public class SettingsWindow : Form
         Controls.Add(grpFlavour);
         y += 118;
 
-        // ── Browser ────────────────────────────────────────────────────
+        //######################################
+        //Browser
+        //######################################
         var grpBrowser = MakeGroup("🌐 Browser", y, 148);
 
         grpBrowser.Controls.Add(MakeLabel("Default:", LblL, 22));
@@ -321,7 +333,9 @@ public class SettingsWindow : Form
         Controls.Add(grpBrowser);
         y += 158;
 
-        // ── RunAs Profiles ─────────────────────────────────────────────
+        //######################################
+        //RunAs profiles
+        //######################################
         var grpRunAs = MakeGroup("👤 RunAs Profiles", y, 188);
 
         _runasListBox = new ListBox
@@ -329,6 +343,7 @@ public class SettingsWindow : Form
             Left = LblL, Top = 22, Width = 165, Height = 154,
             Font = new Font("Segoe UI", 9f)
         };
+
         foreach (var p in _runasProfiles)
             _runasListBox.Items.Add(p.Name);
         _runasListBox.SelectedIndexChanged += (_, _) => LoadSelectedProfile();
@@ -389,13 +404,13 @@ public class SettingsWindow : Form
             _runasProfiles[_selectedProfileIndex].Username = _runasUserBox?.Text.Trim() ?? "";
             _runasProfiles[_selectedProfileIndex].Password = _runasPassBox?.Text ?? "";
             _runasListBox.Items[_selectedProfileIndex] = _runasProfiles[_selectedProfileIndex].Name;
-            Status("✅ Profile saved - click 'Save & Apply' to write to disk.");
+            Status("✅ Profile saved – click 'Save & Apply' to write to disk");
         };
 
         btnDel.Click += (_, _) =>
         {
             if (_selectedProfileIndex < 0 || _runasProfiles.Count <= 1)
-            { Status("❌ Cannot delete - at least one profile required."); return; }
+            { Status("❌ Cannot delete, at least one profile required"); return; }
             _runasProfiles.RemoveAt(_selectedProfileIndex);
             _runasListBox.Items.RemoveAt(_selectedProfileIndex);
             if (_runasListBox.Items.Count > 0)
@@ -407,7 +422,9 @@ public class SettingsWindow : Form
         Controls.Add(grpRunAs);
         y += 198;
 
-        // ── Advanced ───────────────────────────────────────────────────
+        //######################################
+        //Advanced
+        //######################################
         var grpAdv = MakeGroup("Advanced", y, 172);
 
         grpAdv.Controls.Add(MakeLabel("Poll Interval (s):", LblL, 22));
@@ -469,7 +486,9 @@ public class SettingsWindow : Form
         Controls.Add(grpAdv);
         y += 182;
 
-        // ── Action Buttons ─────────────────────────────────────────────
+        //######################################
+        //Action buttons
+        //######################################
         int btnW            = (GrpW - 6) / 4;
         var btnCheckFlavour = MakeButton("🔄 Flavour Updates",  GrpL,              y, btnW);
         var btnCheckApp     = MakeButton("⬆️ App Updates",      GrpL + btnW + 2,   y, btnW);
@@ -501,7 +520,9 @@ public class SettingsWindow : Form
         if (_runasListBox.Items.Count > 0) _runasListBox.SelectedIndex = 0;
     }
 
-    // ── Flavour combo refresh ──────────────────────────────────────────
+    //######################################
+    //Flavour combo refresh
+    //######################################
     private void RefreshFlavourCombo(string selectName)
     {
         if (_flavourCombo == null) return;
@@ -513,7 +534,9 @@ public class SettingsWindow : Form
             _flavourCombo.SelectedIndex = 0;
     }
 
-    // ── RunAs ──────────────────────────────────────────────────────────
+    //######################################
+    //RunAs
+    //######################################
     private void LoadSelectedProfile()
     {
         if (_runasListBox == null) return;
@@ -525,7 +548,9 @@ public class SettingsWindow : Form
         if (_runasPassBox != null) _runasPassBox.Text = p.Password;
     }
 
-    // ── Save ───────────────────────────────────────────────────────────
+    //######################################
+    //Save
+    //######################################
     private void SaveSettings()
     {
         try
@@ -548,7 +573,7 @@ public class SettingsWindow : Form
 
             ConfigLoader.Save(cfg);
             TokenManager.Reset();
-            Status("✅ Settings saved and applied.");
+            Status("✅ Settings saved and applied");
         }
         catch (Exception ex) { Status($"❌ Save failed: {ex.Message}"); }
     }
@@ -559,7 +584,7 @@ public class SettingsWindow : Form
         _ = Task.Run(async () =>
         {
             await ConfigLoader.CheckFlavourUpdateAsync();
-            Invoke(() => Status("✅ Flavour check complete."));
+            Invoke(() => Status("✅ Flavour check complete"));
         });
     }
 
@@ -570,7 +595,9 @@ public class SettingsWindow : Form
         _statusLabel.ForeColor = msg.StartsWith("❌") ? Color.DarkRed : Color.DarkBlue;
     }
 
-    // ── Control factories ──────────────────────────────────────────────
+    //######################################
+    //Control factories
+    //######################################
     private static GroupBox MakeGroup(string text, int top, int height) =>
         new() { Text = text, Left = GrpL, Top = top, Width = GrpW, Height = height, Font = new Font("Segoe UI", 9f) };
 

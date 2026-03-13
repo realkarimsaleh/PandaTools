@@ -1,5 +1,33 @@
 # PandaTools Changelog
 
+## [2.3.0] - 13/03/26
+### Added
+- **Password prompt shows app name in title bar** - the title bar of the credential
+  prompt now displays the label of the item being launched (e.g. "LAPS GUI – Enter Password")
+  rather than a generic title
+- **Show/hide password toggle** - a 👁 button now appears alongside the password
+  field in the credential prompt, allowing the password to be revealed while typing
+- **Single instance enforcement** - launching PandaTools a second time while it is
+  already running will bring the existing instance to focus rather than opening a
+  duplicate tray process
+- **Installer detects running instance** - the installer will detect if PandaTools is
+  already running, offer to close it, and proceed with the update automatically
+- **Launch after install** - once installation completes, the installer offers to
+  launch PandaTools immediately
+- **Configurable install location** - the installer now allows the user to choose
+  the install directory via a folder browser dialog
+
+### Changed
+- **RunAs passwords encrypted at rest** - saved RunAs profile passwords are now
+  encrypted using Windows DPAPI before being written to `config.json`, matching the
+  same per-user, per-machine protection used for the GitLab token; plain-text passwords
+  are never stored on disk
+- **Incorrect password retry loop now prompts silently until cancelled** - if the user
+  cancels the prompt at any point the dialog closes without any error message
+- **OK / Cancel button alignment fixed** - buttons in the credential prompt are now
+  right-aligned with a consistent gap between them, matching standard Windows dialog
+  conventions
+
 ## [2.2.0] - 12/03/26
 ### Added
 - **Token expiry notifications** - a tray balloon is shown on startup if the GitLab
@@ -60,7 +88,6 @@
 ### Fixed
 - `url` items with `runas_profile` set but no explicit browser path now fall back
   to Edge (always present on managed Windows) instead of silently failing
-
 
 ## [2.0.2] - 11/03/26
 ### Changed

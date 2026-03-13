@@ -13,11 +13,11 @@ public static class ConfigLoader
 
     public static event Action? OnConfigReloaded;
 
-    private static AppConfig? _appConfig;
+    private static AppConfig?     _appConfig;
     private static FlavourConfig? _flavourConfig;
     private static readonly object _lock = new();
-    private static System.Timers.Timer? _pollTimer;
-    private static FileSystemWatcher? _configWatcher;
+    private static System.Timers.Timer?  _pollTimer;
+    private static FileSystemWatcher?    _configWatcher;
     private static string _lastHash = "";
     private static readonly HttpClient Http = new();
 
@@ -32,20 +32,18 @@ public static class ConfigLoader
     public static AppConfig     AppConfig     => _appConfig     ?? new AppConfig();
     public static FlavourConfig FlavourConfig => _flavourConfig ?? new FlavourConfig();
 
-    // ── Initial load ──────────────────────────────────────────────────
+    //######################################
+    //Initial load
+    //######################################
     public static void Load()
     {
         Directory.CreateDirectory(ConfigDir);
         Directory.CreateDirectory(FlavourDir);
 
-        // Create blank config on first-ever run
         if (!File.Exists(ConfigPath))
             File.WriteAllText(ConfigPath, JsonSerializer.Serialize(new AppConfig(), JsonOpts));
 
-        // Seed from exe's flavours\ folder every startup (only new files)
         SeedFlavoursFromExeDir();
-
-        // If still nothing, drop a hidden _Template flavour
         EnsureTemplateFlavour();
 
         lock (_lock)
@@ -53,11 +51,14 @@ public static class ConfigLoader
             _appConfig     = LoadAppConfig();
             _flavourConfig = LoadFlavourConfig(_appConfig.Flavour);
         }
+
         StartConfigWatcher();
         StartFlavourPoller();
     }
 
-    // ── Reload (called by watcher, poller, or manually) ───────────────
+    //######################################
+    //Reload
+    //######################################
     public static void Reload()
     {
         lock (_lock)
@@ -68,34 +69,46 @@ public static class ConfigLoader
         OnConfigReloaded?.Invoke();
     }
 
-    // ── Switch flavour ────────────────────────────────────────────────
+    //######################################
+    //Switch flavour
+    //######################################
     public static void SetFlavour(string name)
     {
         var cfg = LoadAppConfig();
         cfg.Flavour = name;
-        File.WriteAllText(ConfigPath, JsonSerializer.Serialize(cfg, JsonOpts));
+        SerializeAndWrite(cfg);
         _lastHash = "";
         Reload();
         StartFlavourPoller();
     }
 
-    // ── Toggle diagnostics ────────────────────────────────────────────
+    //######################################
+    //Toggle diagnostics
+    //######################################
     public static void ToggleDiagnostics()
     {
         var cfg = LoadAppConfig();
         cfg.Diagnostics = !cfg.Diagnostics;
-        File.WriteAllText(ConfigPath, JsonSerializer.Serialize(cfg, JsonOpts));
+        SerializeAndWrite(cfg);
         Reload();
     }
 
-    // ── Save entire AppConfig ─────────────────────────────────────────
+    //######################################
+    //Save entire AppConfig
+    //######################################
     public static void Save(AppConfig cfg)
     {
-        File.WriteAllText(ConfigPath, JsonSerializer.Serialize(cfg, JsonOpts));
+        // Encrypt any RunAs passwords before writing to disk
+        foreach (var p in cfg.RunAsProfiles)
+            p.EncryptPassword();
+
+        SerializeAndWrite(cfg);
         Reload();
     }
 
-    // ── Available flavours ────────────────────────────────────────────
+    //######################################
+    //Available flavours
+    //######################################
     public static string[] GetAvailableFlavours(bool includeHidden = false)
     {
         if (!Directory.Exists(FlavourDir)) return Array.Empty<string>();
@@ -110,13 +123,16 @@ public static class ConfigLoader
                     var fc   = JsonSerializer.Deserialize<FlavourConfig>(json, JsonOpts);
                     return !(fc?.Hidden ?? false);
                 }
+
                 catch { return true; }
             })
             .OrderBy(n => n)
             .ToArray();
     }
 
-    // ── Seed from exe directory on each run (only new files) ──────────
+    //######################################
+    //Seed from exe directory on each run (only new files)
+    //######################################
     private static void SeedFlavoursFromExeDir()
     {
         var sourceFlavours = Path.Combine(AppContext.BaseDirectory, "flavours");
@@ -130,7 +146,9 @@ public static class ConfigLoader
         }
     }
 
-    // ── Ensure _Template flavour only when no real flavours exist ─────
+    //######################################
+    //Ensure _Template flavour only when no real flavours exist
+    //######################################
     private static void EnsureTemplateFlavour()
     {
         var existingNonTemplate = Directory.GetFiles(FlavourDir, "*.json")
@@ -155,24 +173,8 @@ public static class ConfigLoader
                     Icon    = "🌐",
                     Items   = new()
                     {
-                        new()
-                        {
-                            Label = "Staff Site",
-                            Type  = "url",
-                            Value = "https://www.leedsbeckett.ac.uk/staffsite/"
-                        },
-                        new()
-                        {
-                            Label = "ivanti",
-                            Type  = "url",
-                            Value = "https://leedsbeckett.saasiteu.com"
-                        },
-                        new()
-                        {
-                            Label = "Example Incognito",
-                            Type  = "incognito",
-                            Value = "https://example.com"
-                        },
+                        new() { Label = "Google",           Type = "url",       Value = "https://google.com" },
+                        new() { Label = "Google Incognito", Type = "incognito", Value = "https://google.com" },
                     }
                 },
                 new()
@@ -181,20 +183,8 @@ public static class ConfigLoader
                     Icon    = "📜",
                     Items   = new()
                     {
-                        new()
-                        {
-                            Label = "Example GitLab Script",
-                            Type      = "script",
-                            ProjectId = 0,
-                            FilePath  = "Scripts/Example.ps1",
-                            Branch    = "main"
-                        },
-                        new()
-                        {
-                            Label = "Example PowerShell",
-                            Type  = "powershell",
-                            Value = "Write-Host 'Hello from PandaTools'"
-                        },
+                        new() { Label = "Example GitLab Script", Type = "script",     ProjectId = 0, FilePath = "Scripts/Example.ps1", Branch = "main" },
+                        new() { Label = "Example PowerShell",    Type = "powershell", Value = "Write-Host 'Hello from PandaTools'" },
                     }
                 },
                 new()
@@ -203,26 +193,9 @@ public static class ConfigLoader
                     Icon    = "🖥️",
                     Items   = new()
                     {
-                        new()
-                        {
-                            Label = "NotePad",
-                            Type  = "app",
-                            Value = @"C:\Windows\System32\notepad.exe"
-                        },
-                        new()
-                        {
-                            Label        = "NotPad (RunAs)",
-                            Type         = "runas",
-                            Value        = @"C:\Windows\System32\notepad.exe",
-                            RunAsProfile = "Workstation Admin"
-                        },
-                        new()
-                        {
-                            Label = "NotePad (UAC)",
-                            Type  = "app",
-                            Value = @"C:\Windows\System32\notepad.exe",
-                            Admin = true
-                        },
+                        new() { Label = "NotePad",          Type = "app",   Value = @"C:\Windows\System32\notepad.exe" },
+                        new() { Label = "NotePad (RunAs)",  Type = "runas", Value = @"C:\Windows\System32\notepad.exe", RunAsProfile = "Workstation Admin" },
+                        new() { Label = "NotePad (UAC)",    Type = "app",   Value = @"C:\Windows\System32\notepad.exe", Admin = true },
                     }
                 }
             }
@@ -231,10 +204,36 @@ public static class ConfigLoader
         File.WriteAllText(path, JsonSerializer.Serialize(template, JsonOpts));
     }
 
-    // ── File loading ──────────────────────────────────────────────────
+    //######################################
+    //File loading
+    //######################################
     private static AppConfig LoadAppConfig()
     {
-        try { return JsonSerializer.Deserialize<AppConfig>(File.ReadAllText(ConfigPath), JsonOpts) ?? new AppConfig(); }
+        try
+        {
+            var cfg = JsonSerializer.Deserialize<AppConfig>(
+                File.ReadAllText(ConfigPath), JsonOpts) ?? new AppConfig();
+
+            //Decrypt RunAs passwords; also auto-migrate any legacy plain-text passwords.
+            bool needsMigration = false;
+            foreach (var p in cfg.RunAsProfiles)
+            {
+                p.DecryptPassword();
+                if (!string.IsNullOrEmpty(p.LegacyPassword) && string.IsNullOrEmpty(p.PasswordEncrypted))
+                    needsMigration = true;
+            }
+
+            if (needsMigration)
+            {
+                //Encrypt and re-save to clear plain-text passwords from disk
+                foreach (var p in cfg.RunAsProfiles) p.EncryptPassword();
+                SerializeAndWrite(cfg);
+                //Decrypt again so the returned object has in-memory passwords populated
+                foreach (var p in cfg.RunAsProfiles) p.DecryptPassword();
+            }
+
+            return cfg;
+        }
         catch { return new AppConfig(); }
     }
 
@@ -246,7 +245,15 @@ public static class ConfigLoader
         catch { return new FlavourConfig(); }
     }
 
-    // ── Watch config.json for local edits ─────────────────────────────
+    //######################################
+    //Serialise helper (does NOT encrypt - callers must do that first)
+    //######################################
+    private static void SerializeAndWrite(AppConfig cfg) =>
+        File.WriteAllText(ConfigPath, JsonSerializer.Serialize(cfg, JsonOpts));
+
+    //######################################
+    //Watch config.json for local edits
+    //######################################
     private static void StartConfigWatcher()
     {
         _configWatcher?.Dispose();
@@ -261,7 +268,9 @@ public static class ConfigLoader
         _configWatcher.Changed += (_, _) => { debounce.Stop(); debounce.Start(); };
     }
 
-    // ── Poll GitLab for flavour changes ───────────────────────────────
+    //######################################
+    //Poll GitLab for flavour changes
+    //######################################
     private static void StartFlavourPoller()
     {
         _pollTimer?.Dispose();
@@ -289,10 +298,10 @@ public static class ConfigLoader
             var encoded  = Uri.EscapeDataString(repoPath);
             var metaUrl  = $"{apiBase}/projects/{cfg.FlavourProjectId}/repository/files/{encoded}?ref=main";
 
-            using var cts  = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            var metaJson   = await Http.GetStringAsync(metaUrl, cts.Token);
-            var meta       = JsonSerializer.Deserialize<JsonElement>(metaJson);
-            var latest     = meta.GetProperty("last_commit_id").GetString() ?? "";
+            using var cts    = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var metaJson     = await Http.GetStringAsync(metaUrl, cts.Token);
+            var meta         = JsonSerializer.Deserialize<JsonElement>(metaJson);
+            var latest       = meta.GetProperty("last_commit_id").GetString() ?? "";
 
             if (latest == _lastHash || latest == "") return;
 

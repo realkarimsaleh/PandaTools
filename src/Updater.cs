@@ -1,65 +1,93 @@
+using System.Diagnostics;
 using System.Net.Http;
 using System.Text.Json;
 using System.Windows.Forms;
-using System.Diagnostics;
-using System.Reflection;
+using System.Drawing;
 
 public static class Updater
 {
-    private static readonly string CurrentVersion =
-        Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.0.0";
-
     private static readonly HttpClient Http = new();
 
-    public static async Task CheckAsync(bool silent)
+    private static string CurrentVersion =>
+        Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.0.0";
+
+    public static async Task CheckAsync(bool silent = false)
     {
         try
         {
             var cfg       = ConfigLoader.AppConfig;
             var baseUrl   = cfg.UrlServer.TrimEnd('/');
-            var projectId = cfg.AppProjectId;
             var repoPath  = cfg.AppRepoPath.Trim('/');
+            var projectId = cfg.AppProjectId;
 
-            if (projectId <= 0)
+            if (projectId == 0)
             {
                 if (!silent)
                     MessageBox.Show(
-                        "App Project ID is not configured.\n\n" +
-                        "Go to Settings → Advanced and set the App Project ID.",
+                        "App Project ID is not configured.\n\nGo to Settings → Advanced → App Project ID.",
                         "PandaTools", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
-            var apiUrl = $"{baseUrl}/api/v4/projects/{projectId}/releases";
+            PrepareHeaders();
 
-            if (!Http.DefaultRequestHeaders.UserAgent.Any())
-                Http.DefaultRequestHeaders.UserAgent.ParseAdd("PandaTools");
+            var apiBase     = $"{baseUrl}/api/v4";
+            var releasesUrl = $"{apiBase}/projects/{projectId}/releases";
 
-            var token = TokenManager.GetToken();
-            Http.DefaultRequestHeaders.Remove("PRIVATE-TOKEN");
-            if (token != null) Http.DefaultRequestHeaders.Add("PRIVATE-TOKEN", token);
+            using var listCts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+            var json          = await Http.GetStringAsync(releasesUrl, listCts.Token);
+            var releases      = JsonSerializer.Deserialize<JsonElement[]>(json);
 
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(4));
-            var json      = await Http.GetStringAsync(apiUrl, cts.Token);
-            var releases  = JsonSerializer.Deserialize<JsonElement[]>(json);
-            if (releases is null || releases.Length == 0) return;
+            if (releases is null || releases.Length == 0)
+            {
+                if (!silent)
+                    MessageBox.Show("No releases found on GitLab.", "PandaTools",
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
 
             var latestTag  = releases[0].GetProperty("tag_name").GetString()!;
             var releaseUrl = $"{baseUrl}/{repoPath}/-/releases/{latestTag}";
 
-            if (IsNewer(latestTag, CurrentVersion))
+            if (!IsNewer(latestTag, CurrentVersion))
             {
-                var result = MessageBox.Show(
-                    $"PandaTools {latestTag} is available (you have v{CurrentVersion}).\n\nOpen download page?",
-                    "Update Available ✨", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
-                if (result == DialogResult.Yes)
-                    Process.Start(new ProcessStartInfo(releaseUrl) { UseShellExecute = true });
+                if (!silent)
+                    MessageBox.Show($"You're up to date! (v{CurrentVersion})", "PandaTools",
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
             }
-            else if (!silent)
+
+            //######################################
+            //Get full release details to find the setup exe asset
+            //######################################
+            var detailUrl = $"{apiBase}/projects/{projectId}/releases/{Uri.EscapeDataString(latestTag)}";
+            using var detailCts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+            var detailJson      = await Http.GetStringAsync(detailUrl, detailCts.Token);
+            var release         = JsonSerializer.Deserialize<JsonElement>(detailJson);
+
+            string? downloadUrl = FindSetupAssetUrl(release);
+            bool    canAutoInstall = downloadUrl != null;
+
+            var promptMsg = canAutoInstall
+                ? $"PandaTools {latestTag} is available (you have v{CurrentVersion}).\n\n" +
+                  $"Download and install now?\n\n" +
+                  $"PandaTools will close and the installer will launch automatically."
+                : $"PandaTools {latestTag} is available (you have v{CurrentVersion}).\n\n" +
+                  $"Open the download page?";
+
+            var result = MessageBox.Show(
+                promptMsg, "Update Available ✨",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+
+            if (result != DialogResult.Yes) return;
+
+            if (!canAutoInstall)
             {
-                MessageBox.Show($"You're up to date! (v{CurrentVersion})",
-                    "PandaTools", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                Process.Start(new ProcessStartInfo(releaseUrl) { UseShellExecute = true });
+                return;
             }
+
+            await DownloadAndInstallAsync(downloadUrl!, latestTag);
         }
         catch when (silent) { }
         catch (Exception ex) when (!silent)
@@ -69,6 +97,142 @@ public static class Updater
         }
     }
 
+    //######################################
+    //Download the setup exe then launch it
+    //######################################
+    private static async Task DownloadAndInstallAsync(string downloadUrl, string version)
+    {
+        var tempSetup = Path.Combine(Path.GetTempPath(), $"PandaToolsSetup_{version}.exe");
+
+        //######################################
+        //Simple progress form
+        //######################################
+        var progressForm = new Form
+        {
+            Text            = "PandaTools – Downloading Update",
+            Size            = new Size(440, 110),
+            StartPosition   = FormStartPosition.CenterScreen,
+            FormBorderStyle = FormBorderStyle.FixedDialog,
+            MaximizeBox     = false, MinimizeBox = false,
+            TopMost         = true,
+            BackColor       = Color.White,
+            Font            = new Font("Segoe UI", 9f)
+        };
+        var bar = new ProgressBar
+        {
+            Left = 16, Top = 16, Width = 400, Height = 22,
+            Style = ProgressBarStyle.Marquee, MarqueeAnimationSpeed = 30
+        };
+        var lbl = new Label
+        {
+            Left = 16, Top = 46, Width = 400, Height = 20,
+            Text = $"Downloading PandaTools {version}…",
+            ForeColor = Color.DimGray
+        };
+        progressForm.Controls.AddRange(new Control[] { bar, lbl });
+        progressForm.Show();
+        Application.DoEvents();
+
+        try
+        {
+            using var response = await Http.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead);
+            response.EnsureSuccessStatusCode();
+
+            //######################################
+            //Stream to file with basic progress
+            //######################################
+            var total  = response.Content.Headers.ContentLength ?? -1L;
+            long read  = 0;
+
+            await using var fs     = File.Create(tempSetup);
+            await using var stream = await response.Content.ReadAsStreamAsync();
+            var buffer             = new byte[81920];
+            int bytesRead;
+
+            while ((bytesRead = await stream.ReadAsync(buffer)) > 0)
+            {
+                await fs.WriteAsync(buffer.AsMemory(0, bytesRead));
+                read += bytesRead;
+                if (total > 0)
+                {
+                    var pct = (int)(read * 100 / total);
+                    if (progressForm.IsHandleCreated)
+                        progressForm.Invoke(() =>
+                        {
+                            bar.Style = ProgressBarStyle.Continuous;
+                            bar.Value = Math.Clamp(pct, 0, 100);
+                            lbl.Text  = $"Downloading PandaTools {version}… {pct}%";
+                        });
+                }
+                Application.DoEvents();
+            }
+
+            progressForm.Close();
+            progressForm.Dispose();
+
+            MessageBox.Show(
+                $"PandaTools {version} has been downloaded.\n\n" +
+                "The installer will now launch.\n" +
+                "PandaTools will close automatically — it will restart once the install is complete.",
+                "Update Ready", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName        = tempSetup,
+                //triggers UAC via the setup's own elevation
+                UseShellExecute = true  
+            });
+
+            Application.Exit();
+        }
+        catch (Exception ex)
+        {
+            if (!progressForm.IsDisposed) { progressForm.Close(); progressForm.Dispose(); }
+            try { if (File.Exists(tempSetup)) File.Delete(tempSetup); } catch { }
+            MessageBox.Show($"Download failed:\n\n{ex.Message}",
+                "Update Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+    
+    //######################################
+    //Find the first .exe asset link in a release
+    //######################################
+    private static string? FindSetupAssetUrl(JsonElement release)
+    {
+        if (!release.TryGetProperty("assets", out var assets)) return null;
+        if (!assets.TryGetProperty("links", out var links))    return null;
+
+        foreach (var link in links.EnumerateArray())
+        {
+            var name = link.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+            if (!name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) continue;
+            if (!name.Contains("Setup", StringComparison.OrdinalIgnoreCase)) continue;
+
+            // Prefer direct_asset_url (GitLab's authenticated download path)
+            if (link.TryGetProperty("direct_asset_url", out var direct))
+                return direct.GetString();
+            if (link.TryGetProperty("url", out var url))
+                return url.GetString();
+        }
+        return null;
+    }
+
+    //######################################
+    //Auth headers
+    //######################################
+    private static void PrepareHeaders()
+    {
+        if (!Http.DefaultRequestHeaders.UserAgent.Any())
+            Http.DefaultRequestHeaders.UserAgent.ParseAdd("PandaTools");
+
+        var token = TokenManager.GetToken();
+        Http.DefaultRequestHeaders.Remove("PRIVATE-TOKEN");
+        if (token != null)
+            Http.DefaultRequestHeaders.Add("PRIVATE-TOKEN", token);
+    }
+
     private static bool IsNewer(string latest, string current) =>
-        Version.Parse(latest.TrimStart('v')) > Version.Parse(current);
+        Version.TryParse(latest.TrimStart('v'), out var l) &&
+        Version.TryParse(current,               out var c) &&
+        l > c;
 }

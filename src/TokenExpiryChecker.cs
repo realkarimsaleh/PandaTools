@@ -56,7 +56,7 @@ public static class TokenExpiryChecker
             var token  = TokenManager.GetToken();
 
             if (string.IsNullOrWhiteSpace(token))
-                return "❌ No token configured.";
+                return "❌ NO TOKEN CONFIGURED.";
 
             PrepareHeaders(token);
 
@@ -71,20 +71,20 @@ public static class TokenExpiryChecker
                 || expiryProp.ValueKind == JsonValueKind.Null)
             {
                 TrayContext.ShowBalloon("GitLab Token", $"Token '{name}' has no expiry date.", ToolTipIcon.Info);
-                return $"✅ Token '{name}' has no expiry date.";
+                return $"✅ TOKEN '{name}' HAS NO EXPIRY DATE.";
             }
 
             if (!DateOnly.TryParse(expiryProp.GetString(), out var expiry))
-                return "⚠️ Could not parse expiry date.";
+                return "⚠️ COULD NOT PARSE EXPIRY DATE";
 
             var daysLeft = expiry.DayNumber - DateOnly.FromDateTime(DateTime.Today).DayNumber;
 
             if (daysLeft < 0)
             {
                 TrayContext.ShowBalloon("GitLab Token Expired",
-                    $"Token '{name}' expired {Math.Abs(daysLeft)} day{(Math.Abs(daysLeft) == 1 ? "" : "s")} ago ({expiry:dd MMM yyyy}).",
+                    $"TOKEN '{name}' EXPIRED {Math.Abs(daysLeft)} DAY{(Math.Abs(daysLeft) == 1 ? "" : "s")} AGO ({expiry:dd MMM yyyy}).",
                     ToolTipIcon.Error);
-                return $"❌ Token '{name}' expired {Math.Abs(daysLeft)} days ago ({expiry:dd MMM yyyy}).";
+                return $"❌ TOKEN '{name}' EXPIRED {Math.Abs(daysLeft)} DAYS AGO ({expiry:dd MMM yyyy}).";
             }
 
             TrayContext.ShowBalloon("GitLab Token",
@@ -95,7 +95,7 @@ public static class TokenExpiryChecker
         }
         catch (Exception ex)
         {
-            return $"❌ Could not check token: {ex.Message}";
+            return $"❌ COULD NOT CHECK TOKEN: {ex.Message}";
         }
     }
 

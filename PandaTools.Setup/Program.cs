@@ -22,8 +22,8 @@ static class SetupProgram
             Application.Run(new InstallerForm());
     }
 
-    // PLATFORM NOTE: Windows-only admin check.
-    // For macOS port, replace with: static bool IsElevated() => getuid() == 0;
+    //PLATFORM NOTE: Windows-only admin check.
+    //For macOS port, replace with: static bool IsElevated() => getuid() == 0;
 #pragma warning disable CA1416
     static bool IsElevated()
     {
