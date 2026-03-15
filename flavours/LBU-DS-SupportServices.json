@@ -1,6 +1,7 @@
 {
-  "version": "2.3",
+  "version": "2.4",
   "hidden": false,
+  "show_pandashell": false,
   "menu":
   [
     {
@@ -207,7 +208,7 @@
     },
     {
       "section": "GitLab Scripts",
-      "icon": "☁️",
+      "icon": "📜",
       "items":
       [
         {
@@ -216,6 +217,17 @@
           "projectId": 525,
           "filePath": "SCCMCollectionMembership-Utility.ps1",
           "branch": "main"
+        }
+      ]
+    },
+    {
+      "section": "PandaTools Utilities",
+      "icon": "🐼",
+      "items":
+      [
+        {
+          "label": "PandaShell",
+          "type": "pandashell"
         }
       ]
     }

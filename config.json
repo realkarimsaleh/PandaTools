@@ -4,9 +4,41 @@
   "keyFile": "C:\\Windows\\Build\\Sync-Gitlab\\K_Sync-Gitlab.txt",
   "tokenFile": "C:\\Windows\\Build\\Sync-Gitlab\\C_Sync-Gitlab.txt",
   "token": "",
+  "token_encrypted": "",
   "diagnostics": false,
   "manual_mode": false,
   "flavour_project_id": 0,
   "flavour_repo_path": "flavours",
-  "flavour_poll_seconds": 300
+  "flavour_poll_seconds": 300,
+  "app_project_id": 526,
+  "app_repo_path": "service-delivery/pandatools",
+  "token_expiry_warn_days": 14,
+  "url_browser_name": "default",
+  "url_browser_path": "",
+  "browser_name": "default",
+  "browser_path": "",
+  "runas_profiles": [
+    {
+      "name": "Workstation Admin",
+      "username": "LeedsBeckett\\adm1n",
+      "password_encrypted": "",
+      "password": ""
+    }
+  ],
+  "ssh_laps": {
+    "domain_controller": "",
+    "import_command": "Import-Module LAPS",
+    "cmdlet_name": "Get-LapsADPassword"
+  },
+  "ssh_bookmarks": [
+    {
+      "name": "Localhost Test",
+      "host": "127.0.0.1",
+      "port": 22,
+      "account_mode": "manual",
+      "runas_name": "",
+      "username": "admin",
+      "include_domain": false
+    }
+  ]
 }

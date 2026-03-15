@@ -59,7 +59,8 @@ public class TrayContext : ApplicationContext
         using var frm = new Form
         {
             Text            = "PandaTools - First-Time Setup",
-            Size            = new Size(500, 270),
+            // FIXED: Using ClientSize guarantees exact 16px padding on all sides!
+            ClientSize      = new Size(492, 246), 
             StartPosition   = FormStartPosition.CenterScreen,
             FormBorderStyle = FormBorderStyle.FixedDialog,
             MaximizeBox     = false,
@@ -125,16 +126,18 @@ public class TrayContext : ApplicationContext
             DialogResult = DialogResult.Cancel,
             Font         = new Font("Segoe UI", 9f)
         };
+        
         var btnSave = new Button
         {
-            Text         = "💾 Save & Continue",
-            Left         = 354, Top = 200, Width = 130, Height = 30,
+            Text         = "💾 Save && Continue",
+            Left         = 334, Top = 200, Width = 142, Height = 30,
             DialogResult = DialogResult.OK,
             Font         = new Font("Segoe UI", 9f),
             BackColor    = Color.FromArgb(40, 167, 69),
             ForeColor    = Color.White,
             FlatStyle    = FlatStyle.Flat
         };
+        btnSave.FlatAppearance.BorderSize = 0;
 
         frm.Controls.AddRange(new Control[] { btnSkip, btnSave });
         frm.AcceptButton = btnSave;

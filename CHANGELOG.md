@@ -1,5 +1,35 @@
 # PandaTools Changelog
 
+## [2.4.0] - 15/03/26
+### Added
+- **PandaShell (Native SSH)** - a brand new embedded SSH terminal built directly
+  into PandaTools, allowing you to launch and manage console sessions without
+  opening external command windows
+- **Connection Bookmarks** - save frequent SSH targets with custom ports,
+  usernames, and account modes (Manual, LAPS, or RunAs) for one-click access
+- **Global LAPS Integration** - securely fetch and copy local admin passwords
+  from AD directly within the app, utilizing in-memory PowerShell execution to
+  bypass cross-user file permission errors
+- **LAPS Settings** - a dedicated configuration menu for Domain Controllers and
+  cmdlets, accessible from both PandaShell and the main Advanced Settings tab
+- **Restore Defaults** - a new button in Settings → Advanced allows you to reset
+  core configurations to their original state without losing saved profiles or
+  bookmarks
+
+### Changed
+- **Advanced Settings Layout** - the bottom row buttons (Clear Cache, LAPS
+  Settings, Restore Defaults) now dynamically scale to fill the group box evenly
+  for a much cleaner UI
+- **Dynamic Versioning** - the PandaShell header now automatically mirrors the
+  main application's version number
+
+### Fixed
+- **First-Time Setup Window** - fixed a rendering bug where the ampersand was
+  hidden ("Save Continue" instead of "Save & Continue") and added proper padding
+  so the buttons no longer sit flush against the bottom edge
+- **Settings & Apply Rendering** - fixed the same missing ampersand bug on the
+  main "Save & Apply" button
+
 ## [2.3.3] - 13/03/26
 ### Fixed
 - **Bug Fixes**

@@ -35,6 +35,27 @@ public static class MenuBuilder
         }
 
         menu.Items.Add(new ToolStripSeparator());
+
+        //######################################
+        //PandaShell: shown above Settings when flavour has "show_pandashell": true
+        //######################################
+        if (flavour.ShowPandaShell)
+        {
+            menu.Items.Add("🖥 PandaShell", null, (_, _) =>
+            {
+                try
+                {
+                    var w = new PandaShellWindow();
+                    w.Show();
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Could not open PandaShell:\n{ex.Message}",
+                        "PandaTools Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            });
+        }
+
         menu.Items.Add("⚙️ Settings", null, (_, _) =>
         {
             try { using var w = new SettingsWindow(); w.ShowDialog(); }
@@ -44,6 +65,7 @@ public static class MenuBuilder
                     "PandaTools Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         });
+
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Exit", null, (_, _) => onExit());
 
@@ -149,7 +171,6 @@ public static class MenuBuilder
                 var profile = cfg.RunAsProfiles.FirstOrDefault(p =>
                     p.Name.Equals(item.RunAsProfile, StringComparison.OrdinalIgnoreCase));
                 var (parsedExe, parsedArgs) = ParseCommandLine(item.Value, item.Arguments);
-                //App name passed here
                 LaunchAsUser(parsedExe, parsedArgs, profile, item.Label);
             },
 
@@ -179,6 +200,20 @@ public static class MenuBuilder
                 catch (Exception ex)
                 {
                     MessageBox.Show($"Script error:\n{ex.Message}",
+                        "PandaTools Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            },
+
+            "sshpanda" or "pandashell" => (_, _) =>
+            {
+                try
+                {
+                    var w = new PandaShellWindow();
+                    w.Show();
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Could not open PandaShell:\n{ex.Message}",
                         "PandaTools Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             },
@@ -442,13 +477,11 @@ public static class MenuBuilder
 
             if (string.IsNullOrEmpty(profile.Password))
             {
-                //No saved password, prompt but never offer to save
                 HandlePasswordLoop(resolvedExe, resolvedArgs, user, domain, profile,
                     firstAttempt: true, offerSave: false, appName: appName);
                 return;
             }
 
-            //Try saved password first
             TryLaunch(resolvedExe, resolvedArgs, user, domain,
                 ToSecureString(profile.Password), profile, appName);
         }
@@ -484,7 +517,6 @@ public static class MenuBuilder
         catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223) { }
         catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1326)
         {
-            //Saved password was wrong - offer to update it on success
             HandlePasswordLoop(resolvedExe, resolvedArgs, user, domain, profile,
                 firstAttempt: false, offerSave: true, appName: appName);
         }
@@ -516,7 +548,6 @@ public static class MenuBuilder
             isFirst = false;
 
             var (ok, plainText) = PromptForPassword(username, promptMsg, appName);
-            //User cancelled - stop silently
             if (!ok) return;
 
             try
@@ -532,7 +563,6 @@ public static class MenuBuilder
                     LoadUserProfile = true
                 });
 
-                //Only offer to save if the previously saved password changed
                 if (offerSave && profile != null)
                 {
                     if (MessageBox.Show(
@@ -601,18 +631,20 @@ public static class MenuBuilder
                         : $"{lnkArgs} {extraArgs}".Trim();
                     return ResolveToExecutable(lnkExe, combined);
                 }
-
                 goto default;
+
             case ".msc":
                 var mmcPath = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.System), "mmc.exe");
                 return (mmcPath, string.IsNullOrWhiteSpace(extraArgs)
                     ? $"\"{target}\""
                     : $"\"{target}\" {extraArgs}");
+
             case ".cpl":
                 var controlPath = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.System), "control.exe");
                 return (controlPath, $"\"{target}\"");
+
             case ".bat":
             case ".cmd":
                 var cmdPath = Path.Combine(
@@ -620,6 +652,7 @@ public static class MenuBuilder
                 return (cmdPath, string.IsNullOrWhiteSpace(extraArgs)
                     ? $"/c \"{target}\""
                     : $"/c \"{target}\" {extraArgs}");
+
             case ".ps1":
                 var psPath = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.System),
@@ -628,8 +661,10 @@ public static class MenuBuilder
                 return (psPath, string.IsNullOrWhiteSpace(extraArgs)
                     ? $"-NoProfile -ExecutionPolicy Bypass -File \"{target}\""
                     : $"-NoProfile -ExecutionPolicy Bypass -File \"{target}\" {extraArgs}");
+
             case ".exe":
                 return (target, extraArgs);
+
             default:
                 return (target, extraArgs);
         }
@@ -699,7 +734,6 @@ public static class MenuBuilder
             Icon            = AppIcon.Get()
         };
 
-        //Message
         frm.Controls.Add(new Label
         {
             Text     = message ?? $"Enter password for \"{username}\"",
@@ -709,7 +743,6 @@ public static class MenuBuilder
             AutoSize = false
         });
 
-        //Username row
         frm.Controls.Add(new Label
         {
             Text      = "Username:",
@@ -729,7 +762,6 @@ public static class MenuBuilder
             AutoSize = false
         });
 
-        //Password box - narrowed to make room for toggle button
         var txtPass = new TextBox
         {
             Left                  = pad, Top = passTop,
@@ -737,10 +769,8 @@ public static class MenuBuilder
             UseSystemPasswordChar = true,
             Font                  = new System.Drawing.Font("Segoe UI", 9f)
         };
-
         frm.Controls.Add(txtPass);
 
-        //Show/hide toggle button
         var btnToggle = new Button
         {
             Text      = "👁",
@@ -752,7 +782,6 @@ public static class MenuBuilder
             Cursor    = Cursors.Hand
         };
         btnToggle.FlatAppearance.BorderSize = 1;
-
         btnToggle.Click += (_, _) =>
         {
             txtPass.UseSystemPasswordChar = !txtPass.UseSystemPasswordChar;
@@ -761,7 +790,6 @@ public static class MenuBuilder
         };
         frm.Controls.Add(btnToggle);
 
-        //OK / Cancel - right-aligned with consistent gap
         var btnOk = new Button
         {
             Text         = "OK",

@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Serialization;
 using System.Collections.Generic;
+using System;
 
 public class AppConfig
 {
@@ -10,6 +11,15 @@ public class AppConfig
 
     [JsonPropertyName("flavour")]
     public string Flavour { get; set; } = "LBU-DS-ServiceDesk";
+
+    [JsonPropertyName("keyFile")]
+    public string KeyFile { get; set; } = @"C:\Windows\Build\Sync-Gitlab\K_Sync-Gitlab.txt";
+
+    [JsonPropertyName("tokenFile")]
+    public string TokenFile { get; set; } = @"C:\Windows\Build\Sync-Gitlab\C_Sync-Gitlab.txt";
+
+    [JsonPropertyName("token")]
+    public string Token { get; set; } = "";
 
     [JsonPropertyName("token_encrypted")]
     public string TokenEncrypted { get; set; } = "";
@@ -55,6 +65,18 @@ public class AppConfig
     {
         new() { Name = "Workstation Admin", Username = @"", Password = "" }
     };
+
+    //######################################
+    // Global Universal LAPS Configuration 
+    //######################################
+    [JsonPropertyName("laps")]
+    public LapsConfig Laps { get; set; } = new();
+
+    //######################################
+    // PandaShell Bookmarks
+    //######################################
+    [JsonPropertyName("pandashell_bookmarks")]
+    public List<PandaShellBookmark> PandaShellBookmarks { get; set; } = new();
 }
 
 public class RunAsProfile
@@ -64,30 +86,16 @@ public class RunAsProfile
 
     [JsonPropertyName("username")]
     public string Username { get; set; } = "";
-    
-    //######################################
-    //In-memory plain text only, never written to disk
-    //######################################
+
     [JsonIgnore]
     public string Password { get; set; } = "";
 
-    //######################################
-    //DPAPI-encrypted blob, what actually gets stored in JSON
-    //######################################
     [JsonPropertyName("password_encrypted")]
     public string PasswordEncrypted { get; set; } = "";
 
-    //######################################
-    //Legacy plain-text field, read-only for one-time migration
-    //######################################
-    //Once migrated, ConfigLoader.Save() will clear this automatically.
     [JsonPropertyName("password")]
     public string LegacyPassword { get; set; } = "";
 
-    ///<summary>
-    ///Fills <see cref="Password"/> from <see cref="PasswordEncrypted"/>.
-    ///Falls back to <see cref="LegacyPassword"/> for existing configs (auto-migrated on next save).
-    ///</summary>
     public void DecryptPassword()
     {
         if (!string.IsNullOrEmpty(PasswordEncrypted))
@@ -102,18 +110,13 @@ public class RunAsProfile
         }
         else if (!string.IsNullOrEmpty(LegacyPassword))
         {
-            // Migrate: promote plain text to in-memory; ConfigLoader.Save() will encrypt.
             Password = LegacyPassword;
         }
     }
 
-    ///<summary>
-    ///Encrypts <see cref="Password"/> into <see cref="PasswordEncrypted"/> and clears
-    ///<see cref="LegacyPassword"/> so plain text is never written back.
-    ///</summary>
     public void EncryptPassword()
     {
-        LegacyPassword = ""; // always clear legacy on save
+        LegacyPassword = ""; 
 
         if (string.IsNullOrEmpty(Password))
         {
@@ -139,6 +142,9 @@ public class FlavourConfig
 
     [JsonPropertyName("menu")]
     public List<FlavourSection> Menu { get; set; } = new();
+
+    [JsonPropertyName("show_pandashell")]
+    public bool ShowPandaShell { get; set; } = false;
 }
 
 public class FlavourSection
@@ -160,8 +166,7 @@ public class FlavourItem
 
     [JsonPropertyName("type")]
     public string Type { get; set; } = "";
-    // url | incognito | app | runas | script | powershell | exe | explorer
-
+    
     [JsonPropertyName("value")]
     public string Value { get; set; } = "";
 
