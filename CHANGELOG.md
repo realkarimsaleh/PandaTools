@@ -1,5 +1,22 @@
 # PandaTools Changelog
 
+## [2.6.0] - 17/03/26
+### Added
+- **Personal Local Menus** - introduced a user-specific `local_flavour_{Username}.json` file that stacks seamlessly beneath the managed IT menu, allowing agents to build custom toolkits without risking overwrites during GitLab syncs
+- **Menu Editor GUI** - built a brand-new, modern visual editor utilizing a split-screen TreeView and PropertyGrid, allowing users to effortlessly add folders and items to their personal menu without touching raw JSON
+- **Smart Editor Dropdowns** - enhanced the Menu Editor with dynamic, context-aware dropdown menus for Execution Types and RunAs Profiles, preventing manual typos and dramatically improving user experience
+- **Local Menu Toggle** - added a new "Hide Local Flavour" checkbox in Settings to allow users to completely disable their personal menu if they prefer a strict, minimalist workspace
+
+### Changed
+- **Phonetic Speller UI** - completely overhauled the PandaPassGen NATO phonetic cheat sheet from a basic text box to a responsive, color-coded data grid table that automatically scales its height to comfortably fit the generated password
+- **Editor Data Models** - decorated the core C# Flavour configuration classes with metadata attributes to automatically generate and categorize UI fields in the Menu Editor, while safely hiding advanced developer fields (like GitLab script parameters) from end-users
+- **Window Management** - implemented the Singleton pattern across the Settings and Menu Editor windows to intelligently bring existing windows to the front rather than allowing users to spawn multiple duplicate instances
+
+### Fixed
+- **Phonetic Speller Sorting** - permanently locked the column headers in the phonetic data grid to prevent accidental clicks from alphabetically sorting and scrambling the password order
+- **Phonetic Speller Casing** - resolved a bug where uppercase characters would fail to map to their NATO phonetic equivalent by implementing a strict, case-insensitive mapping switch
+- **Hidden Flavours in UI** - resolved an issue where personal local menus were incorrectly appearing in the active flavour dropdown by strictly enforcing the `"hidden": true` JSON property
+
 ## [2.5.0] - 16/03/26
 ### Added
 - **PandaPassGen (Password Generator)** - a secure, fully integrated password 

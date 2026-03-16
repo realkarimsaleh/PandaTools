@@ -3,6 +3,8 @@ using System.Text;
 using System.Text.Json.Serialization;
 using System.Collections.Generic;
 using System;
+using System.ComponentModel; // Added for PropertyGrid UI decorators
+using System.Linq;
 
 public class AppConfig
 {
@@ -29,6 +31,9 @@ public class AppConfig
 
     [JsonPropertyName("manual_mode")]
     public bool ManualMode { get; set; } = false;
+
+    [JsonPropertyName("show_only_subscribed_flavour")]
+    public bool ShowOnlySubscribedFlavour { get; set; } = true;
 
     [JsonPropertyName("flavour_project_id")]
     public int FlavourProjectId { get; set; } = 0;
@@ -67,19 +72,19 @@ public class AppConfig
     };
 
     //######################################
-    // Global Universal LAPS Configuration 
+    //Global Universal LAPS Configuration 
     //######################################
     [JsonPropertyName("laps")]
     public LapsConfig Laps { get; set; } = new();
 
     //######################################
-    // PandaShell Bookmarks
+    //PandaShell Bookmarks
     //######################################
     [JsonPropertyName("pandashell_bookmarks")]
     public List<PandaShellBookmark> PandaShellBookmarks { get; set; } = new();
 
     //######################################
-    // PandaPassGen Configuration
+    //PandaPassGen Configuration
     //######################################
     [JsonPropertyName("pandapassgen")]
     public PandaPassGenConfig PandaPassGen { get; set; } = new();
@@ -174,47 +179,131 @@ public class FlavourConfig
     public bool ShowPandaPassGen { get; set; } = false;
 }
 
+//######################################
+//Decorated Models for Zero-Maintenance UI
+//######################################
+
 public class FlavourSection
 {
+    [Category("Grouping")]
+    [DisplayName("Section Name")]
+    [Description("The name of the folder in the menu.")]
     [JsonPropertyName("section")]
     public string Section { get; set; } = "";
 
+    [Category("Grouping")]
+    [DisplayName("Folder Icon")]
+    [Description("An optional emoji or icon for the folder.")]
     [JsonPropertyName("icon")]
     public string Icon { get; set; } = "";
 
+    //Hide the raw list from the property grid; the TreeView handles this!
+    [Browsable(false)]
     [JsonPropertyName("items")]
     public List<FlavourItem> Items { get; set; } = new();
 }
 
 public class FlavourItem
 {
+    [Category("1. Identity")]
+    [DisplayName("Menu Label")]
+    [Description("The text displayed in the menu.")]
     [JsonPropertyName("label")]
-    public string Label { get; set; } = "";
+    public string Label { get; set; } = "New Item";
 
+    [Category("2. Action")]
+    [DisplayName("Execution Type")]
+    [Description("Select the type of action this item performs from the dropdown.")]
+    //DROPDOWN ENABLED
+    [TypeConverter(typeof(ActionTypeConverter))]
     [JsonPropertyName("type")]
-    public string Type { get; set; } = "";
+    public string Type { get; set; } = "url";
     
+    [Category("2. Action")]
+    [DisplayName("Target / Value")]
+    [Description("The URL, executable path, or command to run.")]
     [JsonPropertyName("value")]
     public string Value { get; set; } = "";
 
+    [Category("2. Action")]
+    [DisplayName("Multiple Targets")]
+    [Description("Use this instead of 'Value' to launch multiple URLs at once.")]
     [JsonPropertyName("values")]
     public List<string> Values { get; set; } = new();
 
+    [Category("3. Modifiers")]
+    [DisplayName("Arguments")]
+    [Description("Extra command-line arguments for 'app' or 'exe' types.")]
     [JsonPropertyName("arguments")]
     public string Arguments { get; set; } = "";
 
+    [Category("3. Modifiers")]
+    [DisplayName("RunAs Profile")]
+    [Description("Select a saved profile to automatically run this item as another user.")]
+    [TypeConverter(typeof(RunAsProfileConverter))] // <--- DYNAMIC PROFILE DROPDOWN ENABLED
     [JsonPropertyName("runas_profile")]
     public string RunAsProfile { get; set; } = "";
 
+    [Category("3. Modifiers")]
+    [DisplayName("Require Admin")]
+    [Description("If true, requests UAC elevation before launching.")]
     [JsonPropertyName("admin")]
     public bool Admin { get; set; } = false;
 
+    [Category("4. GitLab Scripts")]
+    [DisplayName("Project ID")]
+    [Description("The GitLab Project ID containing the script.")]
     [JsonPropertyName("projectId")]
     public int ProjectId { get; set; } = 0;
 
+    [Category("4. GitLab Scripts")]
+    [DisplayName("File Path")]
+    [Description("The exact path to the script in the repository.")]
     [JsonPropertyName("filePath")]
     public string FilePath { get; set; } = "";
 
+    [Category("4. GitLab Scripts")]
+    [DisplayName("Branch")]
+    [Description("The repository branch to pull the script from.")]
     [JsonPropertyName("branch")]
     public string Branch { get; set; } = "main";
+}
+
+//######################################
+//DropDown Menu Converters for the UI
+//######################################
+
+public class ActionTypeConverter : StringConverter
+{
+    public override bool GetStandardValuesSupported(ITypeDescriptorContext? context) => true;
+    public override bool GetStandardValuesExclusive(ITypeDescriptorContext? context) => true; // Forces dropdown ONLY (no typing)
+    
+    public override StandardValuesCollection GetStandardValues(ITypeDescriptorContext? context)
+    {
+        return new StandardValuesCollection(new[] 
+        {
+            "url", "incognito", "app", "explorer", "runas", 
+            "powershell", "script", "pandashell", "pandapassgen"
+        });
+    }
+}
+
+public class RunAsProfileConverter : StringConverter
+{
+    public override bool GetStandardValuesSupported(ITypeDescriptorContext? context) => true;
+    public override bool GetStandardValuesExclusive(ITypeDescriptorContext? context) => false; // Allow typing just in case
+    
+    public override StandardValuesCollection GetStandardValues(ITypeDescriptorContext? context)
+    {
+        //Add a blank option at the top to clear the profile
+        var profiles = new List<string> { "" }; 
+        
+        //Dynamically load the user's saved profiles from settings!
+        if (ConfigLoader.AppConfig?.RunAsProfiles != null)
+        {
+            profiles.AddRange(ConfigLoader.AppConfig.RunAsProfiles.Select(p => p.Name));
+        }
+        
+        return new StandardValuesCollection(profiles);
+    }
 }

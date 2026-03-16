@@ -10,11 +10,15 @@ public static class ConfigLoader
     );
     public static readonly string ConfigPath = Path.Combine(ConfigDir, "config.json");
     public static readonly string FlavourDir = Path.Combine(ConfigDir, "flavours");
+    
+    // Dynamic local flavour path based on the logged in Windows user!
+    public static readonly string LocalFlavourPath = Path.Combine(FlavourDir, $"local_flavour_{Environment.UserName}.json");
 
     public static event Action? OnConfigReloaded;
 
     private static AppConfig?     _appConfig;
     private static FlavourConfig? _flavourConfig;
+    private static FlavourConfig? _localFlavourConfig;
     private static readonly object _lock = new();
     private static System.Timers.Timer?  _pollTimer;
     private static FileSystemWatcher?    _configWatcher;
@@ -29,8 +33,9 @@ public static class ConfigLoader
         WriteIndented               = true
     };
 
-    public static AppConfig     AppConfig     => _appConfig     ?? new AppConfig();
-    public static FlavourConfig FlavourConfig => _flavourConfig ?? new FlavourConfig();
+    public static AppConfig     AppConfig          => _appConfig          ?? new AppConfig();
+    public static FlavourConfig FlavourConfig      => _flavourConfig      ?? new FlavourConfig();
+    public static FlavourConfig LocalFlavourConfig => _localFlavourConfig ?? new FlavourConfig();
 
     //######################################
     //Initial load
@@ -45,11 +50,13 @@ public static class ConfigLoader
 
         SeedFlavoursFromExeDir();
         EnsureTemplateFlavour();
+        EnsureLocalFlavour();
 
         lock (_lock)
         {
-            _appConfig     = LoadAppConfig();
-            _flavourConfig = LoadFlavourConfig(_appConfig.Flavour);
+            _appConfig          = LoadAppConfig();
+            _flavourConfig      = LoadFlavourConfig(_appConfig.Flavour);
+            _localFlavourConfig = LoadLocalFlavourConfig();
         }
 
         StartConfigWatcher();
@@ -63,8 +70,9 @@ public static class ConfigLoader
     {
         lock (_lock)
         {
-            _appConfig     = LoadAppConfig();
-            _flavourConfig = LoadFlavourConfig(_appConfig.Flavour);
+            _appConfig          = LoadAppConfig();
+            _flavourConfig      = LoadFlavourConfig(_appConfig.Flavour);
+            _localFlavourConfig = LoadLocalFlavourConfig();
         }
         OnConfigReloaded?.Invoke();
     }
@@ -152,8 +160,8 @@ public static class ConfigLoader
     private static void EnsureTemplateFlavour()
     {
         var existingNonTemplate = Directory.GetFiles(FlavourDir, "*.json")
-            .Select(Path.GetFileNameWithoutExtension)
-            .Where(n => !string.Equals(n, "_Template", StringComparison.OrdinalIgnoreCase))
+            .Select(f => Path.GetFileNameWithoutExtension(f)!)
+            .Where(n => !string.Equals(n, "_Template", StringComparison.OrdinalIgnoreCase) && !n.StartsWith("local_flavour_"))
             .ToArray();
 
         if (existingNonTemplate.Length > 0) return;
@@ -205,6 +213,16 @@ public static class ConfigLoader
     }
 
     //######################################
+    // Ensure Personal Local Flavour exists
+    //######################################
+    private static void EnsureLocalFlavour()
+    {
+        if (File.Exists(LocalFlavourPath)) return;
+        var local = new FlavourConfig { Version = "1.0", Hidden = true, Menu = new() };
+        File.WriteAllText(LocalFlavourPath, JsonSerializer.Serialize(local, JsonOpts));
+    }
+
+    //######################################
     //File loading
     //######################################
     private static AppConfig LoadAppConfig()
@@ -245,6 +263,13 @@ public static class ConfigLoader
         catch { return new FlavourConfig(); }
     }
 
+    private static FlavourConfig LoadLocalFlavourConfig()
+    {
+        if (!File.Exists(LocalFlavourPath)) return new FlavourConfig();
+        try { return JsonSerializer.Deserialize<FlavourConfig>(File.ReadAllText(LocalFlavourPath), JsonOpts) ?? new FlavourConfig(); }
+        catch { return new FlavourConfig(); }
+    }
+
     //######################################
     //Serialise helper (does NOT encrypt - callers must do that first)
     //######################################
@@ -259,7 +284,7 @@ public static class ConfigLoader
         _configWatcher?.Dispose();
         _configWatcher = new FileSystemWatcher(ConfigDir)
         {
-            Filter              = "config.json",
+            Filter              = "*.json", // Watch all json files in the root dir
             NotifyFilter        = NotifyFilters.LastWrite,
             EnableRaisingEvents = true
         };

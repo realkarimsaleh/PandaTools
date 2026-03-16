@@ -11,14 +11,102 @@ public static class MenuBuilder
 {
     public static ContextMenuStrip Build(Action onExit)
     {
-        var menu    = new ContextMenuStrip();
-        var flavour = ConfigLoader.FlavourConfig;
-        var cfg     = ConfigLoader.AppConfig;
+        var menu         = new ContextMenuStrip();
+        var flavour      = ConfigLoader.FlavourConfig;
+        var localFlavour = ConfigLoader.LocalFlavourConfig;
+        var cfg          = ConfigLoader.AppConfig;
 
+        //######################################
+        //Subscribed Flavour (Managed)
+        //######################################
         menu.Items.Add(new ToolStripMenuItem(cfg.Flavour) { Enabled = false });
         menu.Items.Add(new ToolStripSeparator());
+        RenderMenuSections(menu, flavour.Menu);
 
-        foreach (var section in flavour.Menu)
+        //######################################
+        //Local Flavour (Personal)
+        //######################################
+        if (!cfg.ShowOnlySubscribedFlavour)
+        {
+            menu.Items.Add(new ToolStripSeparator());
+            menu.Items.Add(new ToolStripMenuItem($"👤 {Environment.UserName}'s Menu") { Enabled = false });
+            
+            if (localFlavour.Menu != null && localFlavour.Menu.Count > 0)
+            {
+                RenderMenuSections(menu, localFlavour.Menu);
+            }
+            else
+            {
+                //Show a placeholder so the user knows it's empty but working
+                menu.Items.Add(new ToolStripMenuItem("   (Empty)") { Enabled = false });
+            }
+
+            //A convenient button to launch our GUI Editor!
+            menu.Items.Add("✏️ Edit My Menu", null, (_, _) =>
+            {
+                try { FlavourEditorWindow.ShowWindow(); }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Could not open Menu Editor:\n{ex.Message}",
+                        "PandaTools Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            });
+        }
+
+        menu.Items.Add(new ToolStripSeparator());
+
+        //######################################
+        //PandaShell
+        //######################################
+        if (flavour.ShowPandaShell || localFlavour.ShowPandaShell)
+        {
+            menu.Items.Add("🖥 PandaShell", null, (_, _) =>
+            {
+                try { PandaShellWindow.ShowWindow(); }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Could not open PandaShell:\n{ex.Message}",
+                        "PandaTools Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            });
+        }
+
+        //######################################
+        //PandaPassGen
+        //######################################
+        if (flavour.ShowPandaPassGen || localFlavour.ShowPandaPassGen)
+        {
+            menu.Items.Add("🔑 PandaPassGen", null, (_, _) =>
+            {
+                try { PandaPassGenWindow.ShowWindow(); }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Could not open PandaPassGen:\n{ex.Message}",
+                        "PandaTools Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            });
+        }
+
+        menu.Items.Add("⚙️ Settings", null, (_, _) =>
+        {
+            try { SettingsWindow.ShowWindow(); }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Could not open settings:\n{ex.Message}",
+                    "PandaTools Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        });
+
+        menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add("Exit", null, (_, _) => onExit());
+
+        return menu;
+    }
+
+    //Helper method to draw menus so we don't repeat logic for Subscribed vs Local!
+    private static void RenderMenuSections(ContextMenuStrip menu, List<FlavourSection> sections)
+    {
+        foreach (var section in sections)
         {
             if (string.IsNullOrWhiteSpace(section.Section)) continue;
             var label   = string.IsNullOrWhiteSpace(section.Icon)
@@ -33,61 +121,6 @@ public static class MenuBuilder
             }
             menu.Items.Add(submenu);
         }
-
-        menu.Items.Add(new ToolStripSeparator());
-
-        //######################################
-        //PandaShell: shown above Settings when flavour has "show_pandashell": true
-        //######################################
-        if (flavour.ShowPandaShell)
-        {
-            menu.Items.Add("🖥 PandaShell", null, (_, _) =>
-            {
-                try
-                {
-                    PandaShellWindow.ShowWindow(); // <--- FIXED!
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show($"Could not open PandaShell:\n{ex.Message}",
-                        "PandaTools Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
-            });
-        }
-
-        //######################################
-        //PandaPassGen: shown above Settings when flavour has "show_pandapassgen": true
-        //######################################
-        if (flavour.ShowPandaPassGen)
-        {
-            menu.Items.Add("🔑 PandaPassGen", null, (_, _) =>
-            {
-                try
-                {
-                    PandaPassGenWindow.ShowWindow(); // <--- Replaced with our Singleton method!
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show($"Could not open PandaPassGen:\n{ex.Message}",
-                        "PandaTools Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
-            });
-        }
-
-        menu.Items.Add("⚙️ Settings", null, (_, _) =>
-        {
-            try { using var w = new SettingsWindow(); w.ShowDialog(); }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Could not open settings:\n{ex.Message}",
-                    "PandaTools Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        });
-
-        menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("Exit", null, (_, _) => onExit());
-
-        return menu;
     }
 
     //######################################
@@ -224,11 +257,7 @@ public static class MenuBuilder
 
             "sshpanda" or "pandashell" => (_, _) =>
             {
-                try
-                {
-                    PandaShellWindow.ShowWindow();
-                }
-
+                try { PandaShellWindow.ShowWindow(); }
                 catch (Exception ex)
                 {
                     MessageBox.Show($"Could not open PandaShell:\n{ex.Message}",
@@ -238,10 +267,7 @@ public static class MenuBuilder
 
             "pandapassgen" => (_, _) =>
             {
-                try
-                {
-                    PandaPassGenWindow.ShowWindow();
-                }
+                try { PandaPassGenWindow.ShowWindow(); }
                 catch (Exception ex)
                 {
                     MessageBox.Show($"Could not open PandaPassGen:\n{ex.Message}",

@@ -12,7 +12,7 @@ using System.Windows.Forms;
 public class PandaPassGenWindow : Form
 {
     //######################################
-    // Singleton Instance Tracker
+    //Singleton Instance Tracker
     //######################################
     private static PandaPassGenWindow? _instance;
 
@@ -146,7 +146,7 @@ public class PandaPassGenWindow : Form
         chkPhrases = new CheckBox { Text = "📝 Use Hyphens for Memorable Phrases (e.g. 4pple-Dr@gon)", Left = 40, Top = 295, Width = 380, Checked = false, Font = new Font("Segoe UI", 9f), ForeColor = Color.DimGray };
         Controls.Add(chkPhrases);
 
-        // Link the phrase checkbox so it disables if SpeakEasy is off
+        //Link the phrase checkbox so it disables if SpeakEasy is off
         chkSpeakEasy.CheckedChanged += (_, _) => chkPhrases.Enabled = chkSpeakEasy.Checked;
         chkPhrases.Enabled = chkSpeakEasy.Checked;
 

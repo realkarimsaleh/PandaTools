@@ -9,6 +9,28 @@ using System.Windows.Forms;
 
 public class SettingsWindow : Form
 {
+    //######################################
+    //Singleton Instance Tracker
+    //######################################
+    private static SettingsWindow? _instance;
+
+    public static void ShowWindow()
+    {
+        if (_instance == null || _instance.IsDisposed)
+        {
+            _instance = new SettingsWindow();
+            _instance.Show();
+        }
+        else
+        {
+            if (_instance.WindowState == FormWindowState.Minimized)
+                _instance.WindowState = FormWindowState.Normal;
+
+            _instance.BringToFront();
+            _instance.Activate();
+        }
+    }
+
     private TextBox?       _urlBox;
     private TextBox?       _tokenPlainBox;
     private TextBox?       _browserPathBox;
@@ -27,6 +49,7 @@ public class SettingsWindow : Form
     private NumericUpDown? _warnDaysBox;
     private CheckBox?      _diagCheck;
     private CheckBox?      _manualCheck;
+    private CheckBox?      _onlySubscribedCheck;
     private Label?         _statusLabel;
 
     private List<RunAsProfile> _runasProfiles = new();
@@ -46,7 +69,8 @@ public class SettingsWindow : Form
     private const int FlavFldL = 97;
     private const int FlavCmbW = 210;
 
-    public SettingsWindow()
+    //Changed to private to force the use of ShowWindow()
+    private SettingsWindow()
     {
         Text            = "PandaTools - Settings";
         StartPosition   = FormStartPosition.CenterScreen;
@@ -175,7 +199,7 @@ public class SettingsWindow : Form
         //######################################
         //Flavour
         //######################################
-        var grpFlavour = MakeGroup("Flavour", y, 108);
+        var grpFlavour = MakeGroup("Flavour", y, 134);
 
         grpFlavour.Controls.Add(new Label
         {
@@ -254,15 +278,25 @@ public class SettingsWindow : Form
         };
         grpFlavour.Controls.Add(_manualCheck);
 
+        //Local Flavour Toggle
+        _onlySubscribedCheck = new CheckBox
+        {
+            Text    = "Hide Personal Menu (This will only show GitLab Subscribed menu)",
+            Checked = cfg.ShowOnlySubscribedFlavour,
+            Left = LblL, Top = 82, Width = GrpW - 20,
+            Font    = new Font("Segoe UI", 9f)
+        };
+        grpFlavour.Controls.Add(_onlySubscribedCheck);
+
         grpFlavour.Controls.Add(new Label
         {
             Text      = "💡 Add imports a .json from disk • Remove deletes the file • Active flavour cannot be removed",
-            Left = LblL, Top = 84, Width = GrpW - 16, Height = 16,
+            Left = LblL, Top = 108, Width = GrpW - 16, Height = 16,
             ForeColor = Color.DimGray, Font = new Font("Segoe UI", 7.5f)
         });
 
         Controls.Add(grpFlavour);
-        y += 118;
+        y += 144; // Adjusted to account for new checkbox height
 
         //######################################
         //Browser
@@ -488,7 +522,6 @@ public class SettingsWindow : Form
             ForeColor = Color.DimGray, Font = new Font("Segoe UI", 7.5f)
         });
 
-        // FIXED: Dynamically calculate 3 evenly spaced buttons for the advanced row
         int advBtnW = (GrpW - (LblL * 2) - 12) / 3;
 
         var btnClearCache = MakeButton("🗑 Clear Update Cache", LblL, 168, advBtnW);
@@ -508,6 +541,7 @@ public class SettingsWindow : Form
                 _pollBox.Value = 300;
                 _diagCheck.Checked = false;
                 _manualCheck!.Checked = false;
+                _onlySubscribedCheck!.Checked = false;
                 _warnDaysBox.Value = 14;
                 _appProjectIdBox.Value = 526;
                 _appRepoPathBox!.Text = "service-delivery/pandatools";
@@ -529,8 +563,6 @@ public class SettingsWindow : Form
         int btnW            = (GrpW - 6) / 4;
         var btnCheckFlavour = MakeButton("🔄 Flavour Updates",  GrpL,              y, btnW);
         var btnCheckApp     = MakeButton("⬆️ App Updates",      GrpL + btnW + 2,   y, btnW);
-        
-        // FIXED: Replaced 'Save Apply' with 'Save && Apply' to force ampersand rendering
         var btnSaveApply    = MakeButton("💾 Save && Apply",    GrpL + (btnW+2)*2, y, btnW);
         var btnClose        = MakeButton("✖ Close",             GrpL + (btnW+2)*3, y, btnW);
 
@@ -563,7 +595,7 @@ public class SettingsWindow : Form
     {
         if (_flavourCombo == null) return;
         _flavourCombo.Items.Clear();
-        foreach (var name in ConfigLoader.GetAvailableFlavours(includeHidden: true))
+        foreach (var name in ConfigLoader.GetAvailableFlavours(includeHidden: false))
             _flavourCombo.Items.Add(name);
         _flavourCombo.SelectedItem = selectName;
         if (_flavourCombo.SelectedIndex < 0 && _flavourCombo.Items.Count > 0)
@@ -590,6 +622,7 @@ public class SettingsWindow : Form
             cfg.Flavour              = (string?)_flavourCombo?.SelectedItem ?? cfg.Flavour;
             cfg.Diagnostics          = _diagCheck?.Checked                  ?? cfg.Diagnostics;
             cfg.ManualMode           = _manualCheck?.Checked                ?? cfg.ManualMode;
+            cfg.ShowOnlySubscribedFlavour = _onlySubscribedCheck?.Checked   ?? cfg.ShowOnlySubscribedFlavour;
             cfg.FlavourPollSeconds   = (int?)_pollBox?.Value                ?? cfg.FlavourPollSeconds;
             cfg.FlavourProjectId     = (int?)_projectIdBox?.Value           ?? cfg.FlavourProjectId;
             cfg.TokenExpiryWarnDays  = (int?)_warnDaysBox?.Value            ?? cfg.TokenExpiryWarnDays;
