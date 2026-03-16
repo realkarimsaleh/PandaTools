@@ -13,6 +13,28 @@ using System.Windows.Forms;
 public class PandaShellWindow : Form
 {
     //######################################
+    // Singleton Instance Tracker
+    //######################################
+    private static PandaShellWindow? _instance;
+
+    public static void ShowWindow()
+    {
+        if (_instance == null || _instance.IsDisposed)
+        {
+            _instance = new PandaShellWindow();
+            _instance.Show();
+        }
+        else
+        {
+            if (_instance.WindowState == FormWindowState.Minimized)
+                _instance.WindowState = FormWindowState.Normal;
+
+            _instance.BringToFront();
+            _instance.Activate();
+        }
+    }
+
+    //######################################
     // Win32 API for Embedding Console & Input Focus
     //######################################
     [DllImport("user32.dll", SetLastError = true)]
@@ -86,7 +108,8 @@ public class PandaShellWindow : Form
     private bool IsLaps => string.Equals(accountCombo?.SelectedItem?.ToString(), "LAPS", StringComparison.OrdinalIgnoreCase);
     private bool IsRunAs => accountCombo?.SelectedItem != null && !IsLaps && !string.Equals(accountCombo.SelectedItem.ToString(), "Manual", StringComparison.OrdinalIgnoreCase);
 
-    public PandaShellWindow()
+    // Private constructor enforces the Singleton pattern
+    private PandaShellWindow()
     {
         Text            = "PandaShell";
         StartPosition   = FormStartPosition.CenterScreen;

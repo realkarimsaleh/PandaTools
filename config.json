@@ -7,7 +7,7 @@
   "token_encrypted": "",
   "diagnostics": false,
   "manual_mode": false,
-  "flavour_project_id": 0,
+  "flavour_project_id": 526,
   "flavour_repo_path": "flavours",
   "flavour_poll_seconds": 300,
   "app_project_id": 526,
@@ -20,7 +20,7 @@
   "runas_profiles": [
     {
       "name": "Workstation Admin",
-      "username": "LeedsBeckett\\adm1n",
+      "username": "",
       "password_encrypted": "",
       "password": ""
     }
@@ -30,15 +30,12 @@
     "import_command": "Import-Module LAPS",
     "cmdlet_name": "Get-LapsADPassword"
   },
-  "ssh_bookmarks": [
-    {
-      "name": "Localhost Test",
-      "host": "127.0.0.1",
-      "port": 22,
-      "account_mode": "manual",
-      "runas_name": "",
-      "username": "admin",
-      "include_domain": false
-    }
-  ]
+  "pandapassgen": {
+    "default_length": 12,
+    "default_upper": 1,
+    "default_numbers": 1,
+    "default_symbols": 1,
+    "default_speakeasy": true
+  }
+  
 }

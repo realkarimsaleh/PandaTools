@@ -45,12 +45,30 @@ public static class MenuBuilder
             {
                 try
                 {
-                    var w = new PandaShellWindow();
-                    w.Show();
+                    PandaShellWindow.ShowWindow(); // <--- FIXED!
                 }
                 catch (Exception ex)
                 {
                     MessageBox.Show($"Could not open PandaShell:\n{ex.Message}",
+                        "PandaTools Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            });
+        }
+
+        //######################################
+        //PandaPassGen: shown above Settings when flavour has "show_pandapassgen": true
+        //######################################
+        if (flavour.ShowPandaPassGen)
+        {
+            menu.Items.Add("🔑 PandaPassGen", null, (_, _) =>
+            {
+                try
+                {
+                    PandaPassGenWindow.ShowWindow(); // <--- Replaced with our Singleton method!
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Could not open PandaPassGen:\n{ex.Message}",
                         "PandaTools Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             });
@@ -208,12 +226,25 @@ public static class MenuBuilder
             {
                 try
                 {
-                    var w = new PandaShellWindow();
-                    w.Show();
+                    PandaShellWindow.ShowWindow();
                 }
+
                 catch (Exception ex)
                 {
                     MessageBox.Show($"Could not open PandaShell:\n{ex.Message}",
+                        "PandaTools Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            },
+
+            "pandapassgen" => (_, _) =>
+            {
+                try
+                {
+                    PandaPassGenWindow.ShowWindow();
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Could not open PandaPassGen:\n{ex.Message}",
                         "PandaTools Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             },

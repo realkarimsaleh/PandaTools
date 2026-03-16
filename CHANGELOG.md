@@ -1,5 +1,33 @@
 # PandaTools Changelog
 
+## [2.5.0] - 16/03/26
+### Added
+- **PandaPassGen (Password Generator)** - a secure, fully integrated password 
+  generation utility accessible directly from the system tray or custom menus, 
+  keeping credentials entirely in memory
+- **SpeakEasy Mode (LeetSpeak)** - generates highly memorable, pronounceable 
+  passwords by dynamically fetching and caching a safe-for-work dictionary of 
+  the top 10,000 English words directly from GitHub
+- **Precise Password Controls** - allows Service Desk agents to bypass random 
+  chance and set exact quotas for total length, uppercase letters, numbers, 
+  and symbols to meet strict AD password policies
+- **Smart Preferences** - PandaPassGen now automatically saves your preferred 
+  password criteria (length, toggles, and counts) to `config.json` upon closing 
+  so it is always ready exactly how you left it
+- **Menu Flexibility** - added a new `"pandapassgen"` type to the JSON flavour 
+  schema, allowing the tool to be pinned above the Settings menu globally or 
+  nested inside specific utility folders
+- **Nato Phonatic** - Spells out the generated password in Nato Phonatics
+
+### Changed
+- **Window Management (Singleton Pattern)** - overhauled the window logic for 
+  both PandaShell and PandaPassGen to strictly enforce a single-instance rule; 
+  clicking their shortcuts now intelligently brings the existing window to the 
+  front rather than cluttering the screen with duplicates
+- **AppConfig Schema** - expanded the core `AppConfig` class to seamlessly 
+  support the new password generator defaults without breaking existing saved 
+  profiles or bookmarks
+
 ## [2.4.0] - 15/03/26
 ### Added
 - **PandaShell (Native SSH)** - a brand new embedded SSH terminal built directly

@@ -77,6 +77,30 @@ public class AppConfig
     //######################################
     [JsonPropertyName("pandashell_bookmarks")]
     public List<PandaShellBookmark> PandaShellBookmarks { get; set; } = new();
+
+    //######################################
+    // PandaPassGen Configuration
+    //######################################
+    [JsonPropertyName("pandapassgen")]
+    public PandaPassGenConfig PandaPassGen { get; set; } = new();
+}
+
+public class PandaPassGenConfig
+{
+    [JsonPropertyName("default_length")]
+    public int DefaultLength { get; set; } = 16;
+
+    [JsonPropertyName("default_upper")]
+    public int DefaultUpper { get; set; } = 2;
+
+    [JsonPropertyName("default_numbers")]
+    public int DefaultNumbers { get; set; } = 2;
+
+    [JsonPropertyName("default_symbols")]
+    public int DefaultSymbols { get; set; } = 2;
+
+    [JsonPropertyName("default_speakeasy")]
+    public bool DefaultSpeakEasy { get; set; } = true;
 }
 
 public class RunAsProfile
@@ -145,6 +169,9 @@ public class FlavourConfig
 
     [JsonPropertyName("show_pandashell")]
     public bool ShowPandaShell { get; set; } = false;
+
+    [JsonPropertyName("show_pandapassgen")]
+    public bool ShowPandaPassGen { get; set; } = false;
 }
 
 public class FlavourSection
