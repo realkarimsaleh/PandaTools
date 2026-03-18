@@ -177,6 +177,9 @@ public class FlavourConfig
 
     [JsonPropertyName("show_pandapassgen")]
     public bool ShowPandaPassGen { get; set; } = false;
+
+    [JsonPropertyName("show_pandalaps")]
+    public bool ShowPandaLaps { get; set; } = false;
 }
 
 //######################################

@@ -43,7 +43,7 @@ public class PandaPassGenWindow : Form
 
     private PandaPassGenWindow()
     {
-        Text = "PandaPassGen";
+        Text = "Panda Password Generator";
         Size = new Size(460, 420);
         StartPosition = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.FixedDialog;

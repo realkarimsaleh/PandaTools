@@ -9,6 +9,7 @@ public class LapsSettingsWindow : Form
     private TextBox? _dcEntry;
     private TextBox? _importBox;
     private TextBox? _cmdletBox;
+    private TextBox? _delayBox;
     private Label?   _status;
 
     private const int FormW = 540;
@@ -50,7 +51,7 @@ public class LapsSettingsWindow : Form
         var grp = new GroupBox
         {
             Text = "LAPS Parameters", Left = GrpL, Top = 46,
-            Width = GrpW, Height = 268, Font = new Font("Segoe UI", 9f)
+            Width = GrpW, Height = 315, Font = new Font("Segoe UI", 9f)
         };
 
         var y = 22;
@@ -65,6 +66,7 @@ public class LapsSettingsWindow : Form
             Left = FldL, Top = y, Width = listW, Height = 74,
             Font = new Font("Segoe UI", 9f), BorderStyle = BorderStyle.FixedSingle
         };
+
         foreach (var dc in Split(cfg.DomainController))
             _dcList.Items.Add(dc);
         if (_dcList.Items.Count > 0) _dcList.SelectedIndex = 0;
@@ -81,12 +83,14 @@ public class LapsSettingsWindow : Form
             _dcList.SelectedItem = v;
             if (_dcEntry != null) _dcEntry.Clear();
         };
+
         bDel.Click += (_, _) =>
         {
             if (_dcList.SelectedIndex < 0) return;
             _dcList.Items.RemoveAt(_dcList.SelectedIndex);
             if (_dcList.Items.Count > 0) _dcList.SelectedIndex = 0;
         };
+
         grp.Controls.AddRange(new Control[] { bAdd, bDel });
 
         y += 80;
@@ -97,6 +101,7 @@ public class LapsSettingsWindow : Form
             PlaceholderText = "Type DC hostname, then click  +",
             Font = new Font("Segoe UI", 9f), BorderStyle = BorderStyle.FixedSingle
         };
+
         grp.Controls.Add(_dcEntry);
         grp.Controls.Add(Hint("First entry in list is used for LAPS queries", FldL, y + 24, FldW));
 
@@ -114,6 +119,14 @@ public class LapsSettingsWindow : Form
         grp.Controls.Add(_cmdletBox);
         grp.Controls.Add(Hint("Get-LapsADPassword (on-prem)  or  Get-LapsAADPassword (Azure AD)", FldL, y + 22, FldW));
 
+        y += 44;
+
+        //Validation Delay
+        grp.Controls.Add(Lbl("Validation Delay (ms):", LblW, 8, y));
+        _delayBox = Fld(cfg.ValidationDelayMs.ToString(), FldL, y, FldW, "e.g. 10000");
+        grp.Controls.Add(_delayBox);
+        grp.Controls.Add(Hint("Time to wait (ms) before validating AD changes", FldL, y + 22, FldW));
+
         Controls.Add(grp);
 
         var bRow = 46 + grp.Height + 8;
@@ -124,6 +137,7 @@ public class LapsSettingsWindow : Form
             BackColor = Color.FromArgb(40, 167, 69), ForeColor = Color.White,
             FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9f, FontStyle.Bold)
         };
+        
         bSave.FlatAppearance.BorderSize = 0;
         bSave.Click += (_, _) => Save();
         Controls.Add(bSave);
@@ -145,11 +159,18 @@ public class LapsSettingsWindow : Form
             var dcs = new List<string>();
             foreach (var item in _dcList!.Items) dcs.Add(item.ToString()!);
 
+            //Parse the delay box, defaulting to 10000 if input is invalid
+            if (!int.TryParse(_delayBox?.Text.Trim(), out int delayMs))
+            {
+                delayMs = 10000;
+            }
+
             new LapsConfig
             {
                 DomainController = string.Join(";", dcs),
                 ImportCommand    = _importBox?.Text.Trim() ?? "",
-                CmdletName       = _cmdletBox?.Text.Trim() ?? ""
+                CmdletName       = _cmdletBox?.Text.Trim() ?? "",
+                ValidationDelayMs = delayMs
             }.Save();
 
             St("✅ Settings saved.");

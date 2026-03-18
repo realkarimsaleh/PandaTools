@@ -1,8 +1,9 @@
 {
-  "version": "2.5",
+  "version": "2.6",
   "hidden": false,
   "show_pandashell": false,
   "show_pandapassgen": false,
+  "show_pandalaps": false,
   "menu":
   [
     {
@@ -207,6 +208,10 @@
         {
           "label": "PandaPassGen",
           "type": "pandapassgen"
+        },
+        { 
+          "label": "PandaLAPS",
+          "type": "pandalaps"
         }
       ]
     }

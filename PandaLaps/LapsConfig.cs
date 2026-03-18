@@ -9,6 +9,9 @@ public class LapsConfig
     [System.Text.Json.Serialization.JsonPropertyName("cmdlet_name")]
     public string CmdletName { get; set; } = "Get-LapsADPassword";
 
+    [System.Text.Json.Serialization.JsonPropertyName("validation_delay_ms")]
+    public int ValidationDelayMs { get; set; } = 10000;
+
     //######################################
     //Load from AppConfig (which reads config.json)
     //######################################

@@ -87,6 +87,22 @@ public static class MenuBuilder
             });
         }
 
+        //######################################
+        //PandaLAPS
+        //######################################
+        if (flavour.ShowPandaLaps || localFlavour.ShowPandaLaps)
+        {
+            menu.Items.Add("🛡️ PandaLAPS", null, (_, _) =>
+            {
+                try { PandaLapsWindow.ShowWindow(); }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Could not open PandaLAPS:\n{ex.Message}",
+                        "PandaTools Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            });
+        }
+
         menu.Items.Add("⚙️ Settings", null, (_, _) =>
         {
             try { SettingsWindow.ShowWindow(); }
@@ -271,6 +287,16 @@ public static class MenuBuilder
                 catch (Exception ex)
                 {
                     MessageBox.Show($"Could not open PandaPassGen:\n{ex.Message}",
+                        "PandaTools Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            },
+
+            "pandalaps" => (_, _) =>
+            {
+                try { PandaLapsWindow.ShowWindow(); }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Could not open PandaLAPS:\n{ex.Message}",
                         "PandaTools Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             },

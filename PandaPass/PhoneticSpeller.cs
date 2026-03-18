@@ -164,7 +164,7 @@ public static class PhoneticSpeller
         else frm.ShowDialog();
     }
 
-    private static string GetPhonetic(char c) => char.ToLowerInvariant(c) switch
+    public static string GetPhonetic(char c) => char.ToLowerInvariant(c) switch
     {
         'a' => "Alpha", 
         'b' => "Bravo",
@@ -206,6 +206,7 @@ public static class PhoneticSpeller
         '@' => "At Sign",
         '#' => "Hash / Pound",
         '$' => "Dollar Sign",
+        '£' => "Pound Sign",
         '%' => "Percent",
         '^' => "Caret",
         '&' => "Ampersand",
@@ -214,6 +215,25 @@ public static class PhoneticSpeller
         '_' => "Underscore",
         '+' => "Plus",
         '=' => "Equals",
+        '[' => "Left Square Bracket",
+        ']' => "Right Square Bracket",
+        '{' => "Left Brace",
+        '}' => "Right Brace",
+        '(' => "Left Parenthesis",
+        ')' => "Right Parenthesis",
+        '\\' => "Backslash",
+        '/' => "Forward Slash",
+        '\'' => "Apostrophe",
+        '|' => "Vertical Bar / Pipe",
+        ':' => "Colon",
+        ';' => "Semicolon",
+        '"' => "Quotation Mark",
+        '`' => "Backtick",
+        '~' => "Tilde",
+        '.' => "Period",
+        '<' => "Less Than",
+        '>' => "Greater Than",
+        '?' => "Question Mark",
         _ => "Unknown"
     };
 }

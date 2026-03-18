@@ -11,7 +11,7 @@
     "C:\\Users\\saleh03\\.nuget\\packages\\": {}
   },
   "project": {
-    "version": "2.4.0",
+    "version": "2.6.0",
     "restore": {
       "projectUniqueName": "C:\\Code Repositories\\LBU-ITSRK-Development\\C#\\PandaTools\\PandaTools.csproj",
       "projectName": "PandaTools",
@@ -65,7 +65,7 @@
             "privateAssets": "none"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.103/PortableRuntimeIdentifierGraph.json",
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.104/PortableRuntimeIdentifierGraph.json",
         "packagesToPrune": {
           "Microsoft.CSharp": "(,4.7.32767]",
           "Microsoft.VisualBasic": "(,10.4.32767]",
