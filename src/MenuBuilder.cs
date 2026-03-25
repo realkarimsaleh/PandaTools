@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
-using System.Security;
 using System.Windows.Forms;
 
 public static class MenuBuilder
@@ -145,47 +144,27 @@ public static class MenuBuilder
     private static EventHandler ResolveHandler(FlavourItem item) =>
         item.Type.ToLowerInvariant() switch
         {
-            "url" => (_, _) =>
+            "url" or "incognito" => (_, _) =>
             {
-                var cfg  = ConfigLoader.AppConfig;
+                var cfg = ConfigLoader.AppConfig;
                 var urls = item.Values.Count > 0 ? item.Values : new List<string> { item.Value };
+                bool isIncognito = item.Type.Equals("incognito", StringComparison.OrdinalIgnoreCase);
 
+                string browserName = isIncognito ? cfg.BrowserName : cfg.UrlBrowserName;
+                string browserPath = isIncognito ? cfg.BrowserPath : cfg.UrlBrowserPath;
+
+                RunAsProfile? resolvedProfile = null;
                 if (!string.IsNullOrWhiteSpace(item.RunAsProfile))
                 {
                     var profile = cfg.RunAsProfiles.FirstOrDefault(p =>
                         p.Name.Equals(item.RunAsProfile, StringComparison.OrdinalIgnoreCase));
-                    var resolvedProfile = ResolveProfilePassword(profile);
+                    
+                    resolvedProfile = ResolveProfilePassword(profile);
+                    //User cancelled password prompt
                     if (resolvedProfile == null) return;
-                    foreach (var url in urls)
-                        OpenUrlAsUser(url, cfg.UrlBrowserName, cfg.UrlBrowserPath, resolvedProfile);
                 }
-                else
-                {
-                    foreach (var url in urls)
-                        OpenUrl(url, cfg.UrlBrowserName, cfg.UrlBrowserPath);
-                }
-            },
 
-            "incognito" => (_, _) =>
-            {
-                var cfg  = ConfigLoader.AppConfig;
-                var urls = item.Values.Count > 0 ? item.Values : new List<string> { item.Value };
-
-                if (!string.IsNullOrWhiteSpace(item.RunAsProfile))
-                {
-                    var profile = cfg.RunAsProfiles.FirstOrDefault(p =>
-                        p.Name.Equals(item.RunAsProfile, StringComparison.OrdinalIgnoreCase));
-                    var resolvedProfile = ResolveProfilePassword(profile);
-
-                    if (resolvedProfile == null) return;
-                    foreach (var url in urls)
-                        OpenIncognitoAsUser(url, cfg.BrowserName, cfg.BrowserPath, resolvedProfile);
-                }
-                else
-                {
-                    foreach (var url in urls)
-                        OpenIncognito(url, cfg.BrowserName, cfg.BrowserPath);
-                }
+                LaunchURL.Open(urls, browserName, browserPath, isIncognito, resolvedProfile);
             },
 
             "app" => (_, _) =>
@@ -313,7 +292,7 @@ public static class MenuBuilder
 
         if (!string.IsNullOrEmpty(profile.Password)) return profile;
 
-        var (ok, entered) = PromptForPassword(profile.Username);
+        var (ok, entered) = CredentialPrompt.Show(profile.Username, $"Enter password for \"{profile.Username}\"");
         if (!ok) return null;
 
         return new RunAsProfile
@@ -323,172 +302,6 @@ public static class MenuBuilder
             Password = entered
         };
     }
-
-    //######################################
-    //URL - Standard
-    //######################################
-    private static void OpenUrl(string url, string browserName, string customPath)
-    {
-        try
-        {
-            if (browserName.Equals("default", StringComparison.OrdinalIgnoreCase)
-                || string.IsNullOrWhiteSpace(browserName))
-            {
-                Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
-                return;
-            }
-            var exePath = ResolveBrowserExe(browserName, customPath);
-
-            if (!string.IsNullOrEmpty(exePath) && File.Exists(exePath))
-            {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName        = exePath,
-                    Arguments       = $"\"{url}\"",
-                    UseShellExecute = true
-                });
-                return;
-            }
-
-            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
-        }
-        catch
-        {
-            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
-        }
-    }
-
-    //######################################
-    //URL as a different user
-    //######################################
-    private static void OpenUrlAsUser(string url, string browserName, string customPath, RunAsProfile? profile)
-    {
-        string? exePath;
-
-        if (browserName.Equals("default", StringComparison.OrdinalIgnoreCase)
-            || string.IsNullOrWhiteSpace(browserName))
-        {
-            exePath = FindBrowser("edge");
-            if (string.IsNullOrEmpty(exePath)) exePath = FindBrowser("chrome");
-            if (string.IsNullOrEmpty(exePath)) exePath = FindBrowser("firefox");
-            if (string.IsNullOrEmpty(exePath)) exePath = FindBrowser("brave");
-
-            if (string.IsNullOrEmpty(exePath))
-            {
-                MessageBox.Show(
-                    "Could not locate a browser for RunAs launch.\n\n" +
-                    "Go to Settings → Browser and select a specific browser\n" +
-                    "when using runas_profile with url items.",
-                    "PandaTools – Browser Not Found",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-        }
-        else
-        {
-            exePath = ResolveBrowserExe(browserName, customPath);
-            if (string.IsNullOrWhiteSpace(exePath) || !File.Exists(exePath))
-            {
-                MessageBox.Show(
-                    $"Could not locate browser: {browserName}\n" +
-                    "Configure it in Settings → Browser.",
-                    "PandaTools", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-        }
-
-        LaunchAsUser(exePath, $"\"{url}\"", profile);
-    }
-
-    //######################################
-    //Incognito - standard
-    //######################################
-    private static void OpenIncognito(string url, string browserName, string customPath)
-    {
-        try
-        {
-            var (exePath, flag) = ResolveIncognitoBrowser(browserName, customPath);
-            if (!string.IsNullOrEmpty(exePath) && File.Exists(exePath))
-            {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName        = exePath,
-                    Arguments       = $"{flag} \"{url}\"",
-                    UseShellExecute = true
-                });
-                return;
-            }
-
-            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
-        }
-        catch
-        {
-            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
-        }
-    }
-
-    //######################################
-    //Incognito - as a different user
-    //######################################
-    private static void OpenIncognitoAsUser(string url, string browserName, string customPath, RunAsProfile? profile)
-    {
-        var (exePath, flag) = ResolveIncognitoBrowser(browserName, customPath);
-        if (string.IsNullOrWhiteSpace(exePath) || !File.Exists(exePath))
-        {
-            MessageBox.Show(
-                $"Could not locate browser: {browserName}\n" +
-                "Configure it in Settings → Browser.",
-                "PandaTools", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            return;
-        }
-
-        LaunchAsUser(exePath, $"{flag} \"{url}\"", profile);
-    }
-
-    //######################################
-    //Browser resolution
-    //######################################
-    private static string ResolveBrowserExe(string browserName, string customPath) =>
-        browserName.ToLowerInvariant() switch
-        {
-            "chrome"  => FindBrowser("chrome"),
-            "edge"    => FindBrowser("edge"),
-            "firefox" => FindBrowser("firefox"),
-            "brave"   => FindBrowser("brave"),
-            "custom"  => customPath,
-            _         => ""
-        };
-
-    private static (string exePath, string flag) ResolveIncognitoBrowser(string browserName, string customPath) =>
-        browserName.ToLowerInvariant() switch
-        {
-            "chrome"  => (FindBrowser("chrome"),  "--incognito"),
-            "edge"    => (FindBrowser("edge"),    "--inprivate"),
-            "firefox" => (FindBrowser("firefox"), "-private-window"),
-            "brave"   => (FindBrowser("brave"),   "--incognito"),
-            "custom"  => (customPath,             "--incognito"),
-            _         => (FindBrowser("edge"),    "--inprivate")
-        };
-
-    private static string FindBrowser(string name) => name switch
-    {
-        "chrome"  => FirstExisting(
-            @"C:\Program Files\Google\Chrome\Application\chrome.exe",
-            @"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"),
-        "edge"    => FirstExisting(
-            @"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
-            @"C:\Program Files\Microsoft\Edge\Application\msedge.exe"),
-        "firefox" => FirstExisting(
-            @"C:\Program Files\Mozilla Firefox\firefox.exe",
-            @"C:\Program Files (x86)\Mozilla Firefox\firefox.exe"),
-        "brave"   => FirstExisting(
-            @"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe",
-            @"C:\Program Files (x86)\BraveSoftware\Brave-Browser\Application\brave.exe"),
-        _         => ""
-    };
-
-    private static string FirstExisting(params string[] paths) =>
-        paths.FirstOrDefault(File.Exists) ?? "";
 
     //######################################
     //ParseCommandLine
@@ -540,161 +353,8 @@ public static class MenuBuilder
     //######################################
     private static void LaunchAsUser(string target, string arguments, RunAsProfile? profile, string appName = "")
     {
-        try
-        {
-            var (resolvedExe, resolvedArgs) = ResolveToExecutable(target, arguments);
-
-            if (profile == null || string.IsNullOrWhiteSpace(profile.Username))
-            {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName        = resolvedExe,
-                    Arguments       = resolvedArgs,
-                    UseShellExecute = true,
-                    Verb            = "runas"
-                });
-                return;
-            }
-
-            var (domain, user) = SplitDomainUser(profile.Username);
-
-            if (string.IsNullOrEmpty(profile.Password))
-            {
-                HandlePasswordLoop(resolvedExe, resolvedArgs, user, domain, profile,
-                    firstAttempt: true, offerSave: false, appName: appName);
-                return;
-            }
-
-            TryLaunch(resolvedExe, resolvedArgs, user, domain,
-                ToSecureString(profile.Password), profile, appName);
-        }
-        catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223) { }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"RunAs failed:\n{ex.Message}",
-                "PandaTools Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-        }
-    }
-
-    //######################################
-    //Launch with saved password, hand off to loop on 1326
-    //######################################
-    private static void TryLaunch(
-        string resolvedExe, string resolvedArgs,
-        string user, string domain,
-        SecureString password, RunAsProfile? profile, string appName = "")
-    {
-        try
-        {
-            Process.Start(new ProcessStartInfo
-            {
-                FileName        = resolvedExe,
-                Arguments       = resolvedArgs,
-                UseShellExecute = false,
-                UserName        = user,
-                Domain          = domain,
-                Password        = password,
-                LoadUserProfile = true
-            });
-        }
-        catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223) { }
-        catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1326)
-        {
-            HandlePasswordLoop(resolvedExe, resolvedArgs, user, domain, profile,
-                firstAttempt: false, offerSave: true, appName: appName);
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"RunAs failed:\n{ex.Message}",
-                "PandaTools Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-        }
-    }
-
-    //######################################
-    //Retry loop - prompts until correct password or cancel
-    //######################################
-    private static void HandlePasswordLoop(
-        string resolvedExe, string resolvedArgs,
-        string user, string domain,
-        RunAsProfile? profile, bool firstAttempt, bool offerSave, string appName = "")
-    {
-        var profileName = profile?.Name ?? user;
-        var username    = profile?.Username ?? user;
-        bool isFirst    = firstAttempt;
-
-        while (true)
-        {
-            var promptMsg = isFirst
-                ? $"Enter password for \"{profileName}\""
-                : $"Incorrect password for \"{profileName}\".\n\nPlease try again:";
-
-            isFirst = false;
-
-            var (ok, plainText) = PromptForPassword(username, promptMsg, appName);
-            if (!ok) return;
-
-            try
-            {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName        = resolvedExe,
-                    Arguments       = resolvedArgs,
-                    UseShellExecute = false,
-                    UserName        = user,
-                    Domain          = domain,
-                    Password        = ToSecureString(plainText),
-                    LoadUserProfile = true
-                });
-
-                if (offerSave && profile != null)
-                {
-                    if (MessageBox.Show(
-                            $"Password updated successfully for \"{profileName}\".\n\nSave the new password?",
-                            "Save Password?",
-                            MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
-                        SaveProfilePassword(profile.Name, plainText);
-                }
-                return;
-            }
-            catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223) { return; }
-            catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1326) { }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"RunAs failed:\n{ex.Message}",
-                    "PandaTools Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return;
-            }
-        }
-    }
-
-    //######################################
-    //Save updated password back to config via DPAPI
-    //######################################
-    private static void SaveProfilePassword(string profileName, string plainPassword)
-    {
-        var cfg   = ConfigLoader.AppConfig;
-        var match = cfg.RunAsProfiles.FirstOrDefault(p =>
-            p.Name.Equals(profileName, StringComparison.OrdinalIgnoreCase));
-        if (match == null) return;
-        match.Password = plainPassword;
-        ConfigLoader.Save(cfg);
-    }
-
-    //######################################
-    //Split DOMAIN\user or user@domain
-    //######################################
-    private static (string domain, string user) SplitDomainUser(string username)
-    {
-        if (username.Contains('\\'))
-        {
-            var parts = username.Split('\\', 2);
-            return (parts[0], parts[1]);
-        }
-
-        if (username.Contains('@'))
-            return (".", username);
-
-        return (Environment.MachineName, username);
+        var (resolvedExe, resolvedArgs) = ResolveToExecutable(target, arguments);
+        CredentialPrompt.LaunchWithRunAs(resolvedExe, resolvedArgs, profile, appName);
     }
 
     //######################################
@@ -774,142 +434,5 @@ public static class MenuBuilder
         {
             return ("", "");
         }
-    }
-
-    //######################################
-    //Password prompt with show/hide toggle
-    //######################################
-    private static (bool ok, string password) PromptForPassword(string username, string? message = null, string appName = "")
-    {
-        var title = string.IsNullOrWhiteSpace(appName)
-            ? "Password Prompt"
-            : $"{appName}";
-
-        const int pad     = 16;
-        const int formW   = 400;
-        const int innerW  = formW - pad * 2 - 16;
-        const int toggleW = 32;
-        const int btnW    = 80;
-        const int btnGap  = 8;
-
-        const int msgTop  = 16;
-        const int msgH    = 36;
-        const int userTop = msgTop + msgH + 8;
-        const int passTop = userTop + 26;
-        const int btnTop  = passTop + 34;
-        const int btnH    = 28;
-        const int formH   = btnTop + btnH + 48;
-
-        //Right-align both buttons with consistent gap between them
-        const int btnCancelLeft = formW - pad - 16 - btnW;
-        const int btnOkLeft     = btnCancelLeft - btnGap - btnW;
-
-        var frm = new Form
-        {
-            Text            = title,
-            Size            = new System.Drawing.Size(formW, formH),
-            StartPosition   = FormStartPosition.CenterScreen,
-            FormBorderStyle = FormBorderStyle.FixedDialog,
-            MaximizeBox     = false,
-            MinimizeBox     = false,
-            TopMost         = true,
-            Font            = new System.Drawing.Font("Segoe UI", 9f),
-            Icon            = AppIcon.Get()
-        };
-
-        frm.Controls.Add(new Label
-        {
-            Text     = message ?? $"Enter password for \"{username}\"",
-            Left     = pad, Top = msgTop,
-            Width    = innerW, Height = msgH,
-            Font     = new System.Drawing.Font("Segoe UI", 9f),
-            AutoSize = false
-        });
-
-        frm.Controls.Add(new Label
-        {
-            Text      = "Username:",
-            Left      = pad, Top = userTop,
-            Width     = 74, Height = 20,
-            ForeColor = System.Drawing.Color.DimGray,
-            Font      = new System.Drawing.Font("Segoe UI", 9f),
-            AutoSize  = false
-        });
-
-        frm.Controls.Add(new Label
-        {
-            Text     = username,
-            Left     = pad + 76, Top = userTop,
-            Width    = innerW - 76, Height = 20,
-            Font     = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold),
-            AutoSize = false
-        });
-
-        var txtPass = new TextBox
-        {
-            Left                  = pad, Top = passTop,
-            Width                 = innerW - toggleW - 4,
-            UseSystemPasswordChar = true,
-            Font                  = new System.Drawing.Font("Segoe UI", 9f)
-        };
-        frm.Controls.Add(txtPass);
-
-        var btnToggle = new Button
-        {
-            Text      = "👁",
-            Left      = pad + innerW - toggleW, Top = passTop - 1,
-            Width     = toggleW, Height = txtPass.Height + 2,
-            FlatStyle = FlatStyle.Flat,
-            Font      = new System.Drawing.Font("Segoe UI", 9f),
-            TabStop   = false,
-            Cursor    = Cursors.Hand
-        };
-        btnToggle.FlatAppearance.BorderSize = 1;
-        btnToggle.Click += (_, _) =>
-        {
-            txtPass.UseSystemPasswordChar = !txtPass.UseSystemPasswordChar;
-            txtPass.Focus();
-            txtPass.SelectionStart = txtPass.Text.Length;
-        };
-        frm.Controls.Add(btnToggle);
-
-        var btnOk = new Button
-        {
-            Text         = "OK",
-            Left         = btnOkLeft, Top = btnTop,
-            Width        = btnW, Height = btnH,
-            DialogResult = DialogResult.OK,
-            Font         = new System.Drawing.Font("Segoe UI", 9f)
-        };
-
-        var btnCancel = new Button
-        {
-            Text         = "Cancel",
-            Left         = btnCancelLeft, Top = btnTop,
-            Width        = btnW, Height = btnH,
-            DialogResult = DialogResult.Cancel,
-            Font         = new System.Drawing.Font("Segoe UI", 9f)
-        };
-
-        frm.Controls.AddRange(new System.Windows.Forms.Control[] { btnOk, btnCancel });
-        frm.AcceptButton = btnOk;
-        frm.CancelButton = btnCancel;
-        frm.Shown += (_, _) => txtPass.Focus();
-
-        var dlg = frm.ShowDialog();
-        var pwd = txtPass.Text;
-        frm.Dispose();
-        return (dlg == DialogResult.OK, pwd);
-    }
-
-    //######################################
-    //SecureString helper
-    //######################################
-    private static SecureString ToSecureString(string input)
-    {
-        var s = new SecureString();
-        foreach (var c in input) s.AppendChar(c);
-        s.MakeReadOnly();
-        return s;
     }
 }
