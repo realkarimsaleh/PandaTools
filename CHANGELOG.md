@@ -1,5 +1,20 @@
 # PandaTools Changelog
 
+## [2.7.0] - 25/03/26
+### Added
+- **Provision System** - introduced a single `provision.json` file that can be placed alongside the installer to automatically seed `config.json` and flavour files on first install, enabling zero-touch LBU deployments without any manual configuration
+- **Embedded Flavours** - `provision.json` now embeds flavour definitions directly under a `provision_flavours` key; the installer extracts and writes each as a standalone `.json` file, eliminating the need for a separate flavour folder in the deployment share
+- **Installer Provision Browse** - the installer UI now includes a provision file row with a Browse button and live validation feedback, allowing IT to point to a `provision.json` anywhere on disk rather than relying solely on auto-detection
+- **Update Mode Detection** - the installer now reads the existing `InstallLocation` from the registry on startup; if PandaTools is already installed the UI switches to update mode, locks the install path, hides the provision panel entirely, and changes the button to "Update" — config and flavours are never touched on updates
+- **CI Build Injection** - `GitLabUrl`, `GitLabProjectId`, and `GitLabRepoPath` are now baked into the binary at compile time via `RuntimeHostConfigurationOption`, using `CI_SERVER_URL`, `CI_PROJECT_ID`, and `CI_PROJECT_PATH` from the GitLab CI pipeline; these become first-run defaults when no `config.json` exists, with empty fallbacks on public or local builds
+- **Separate Flavours Repo Support** - flavour polling is now fully decoupled from the app repo; `flavour_project_id` in `config.json` can point to any GitLab project, enabling a dedicated `pandatools-flavours` repo for clean separation between app releases and menu management
+ 
+### Changed
+- **Hardcoded Defaults Removed** - all Leeds Beckett-specific default values (`url_server`, `flavour`, `KeyFile`, `TokenFile`, `AppRepoPath`, `AppProjectId`, `DomainController`) have been removed from `AppConfig.cs`, `LapsConfig.cs`, and the Settings Restore Defaults button; the app now ships clean with empty defaults for public release
+- **Restore Defaults** - the Settings window Restore Defaults button now resets `GitLab Server`, `App Project ID`, and `App Repo Path` to blank/zero rather than a specific values
+- **README Updated** - requirements section now references a generic GitLab instance rather than `gitlab.your-domain.com`; added Configuration section documenting `config.template.json` setup for public users
+- **config.template.json** - added a public-facing template with placeholder values and inline documentation so new users know exactly what to fill in
+
 ## [2.6.0] - 17/03/26
 ### Added
 - **Personal Local Menus** - introduced a user-specific `local_flavour_{Username}.json` file that stacks seamlessly beneath the managed IT menu, allowing agents to build custom toolkits without risking overwrites during GitLab syncs

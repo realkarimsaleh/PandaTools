@@ -6,10 +6,35 @@
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationIcon>assets\PandaTools.ico</ApplicationIcon>
-    <Version>2.6.0</Version>
-    <AssemblyVersion>2.6.0</AssemblyVersion>
-    <FileVersion>2.6.0</FileVersion>
+    <Version>2.7.0</Version>
+    <AssemblyVersion>2.7.0</AssemblyVersion>
+    <FileVersion>2.7.0</FileVersion>
   </PropertyGroup>
+
+  <!--
+    CI Build Injection
+    Passed in by GitLab CI pipeline via -p:GitLabUrl=... etc.
+    Fallback values are intentionally blank so public/local builds ship with no LBU defaults.
+    The app reads these at runtime via AppContext.GetData() and uses them as first-run defaults
+    only when no config.json exists. config.json always wins if it already exists.
+  -->
+  <PropertyGroup>
+    <GitLabUrl       Condition="'$(GitLabUrl)'       == ''"></GitLabUrl>
+    <GitLabProjectId Condition="'$(GitLabProjectId)' == ''">0</GitLabProjectId>
+    <GitLabRepoPath  Condition="'$(GitLabRepoPath)'  == ''"></GitLabRepoPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <RuntimeHostConfigurationOption Include="PandaTools.GitLabUrl"
+                                    Value="$(GitLabUrl)"
+                                    Trim="true" />
+    <RuntimeHostConfigurationOption Include="PandaTools.GitLabProjectId"
+                                    Value="$(GitLabProjectId)"
+                                    Trim="true" />
+    <RuntimeHostConfigurationOption Include="PandaTools.GitLabRepoPath"
+                                    Value="$(GitLabRepoPath)"
+                                    Trim="true" />
+  </ItemGroup>
 
   <ItemGroup>
     <Compile Remove="PandaTools.Setup\**\*.cs" />

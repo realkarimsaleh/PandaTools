@@ -3,22 +3,34 @@ using System.Text;
 using System.Text.Json.Serialization;
 using System.Collections.Generic;
 using System;
-using System.ComponentModel; // Added for PropertyGrid UI decorators
+using System.ComponentModel;
 using System.Linq;
 
 public class AppConfig
 {
+    //######################################
+    //CI Build Injection Helpers
+    //Reads values baked in at compile time by the GitLab CI pipeline.
+    //On a public or local build these return "" or 0 — no LBU values ship by default.
+    //config.json always wins over these if it already exists — first-run defaults only.
+    //######################################
+    private static string CiString(string key) =>
+        AppContext.GetData(key) as string is { Length: > 0 } v ? v : "";
+
+    private static int CiInt(string key) =>
+        int.TryParse(AppContext.GetData(key) as string, out var v) ? v : 0;
+
     [JsonPropertyName("url_server")]
-    public string UrlServer { get; set; } = "https://gitlab.leedsbeckett.ac.uk";
+    public string UrlServer { get; set; } = CiString("PandaTools.GitLabUrl");
 
     [JsonPropertyName("flavour")]
-    public string Flavour { get; set; } = "LBU-DS-ServiceDesk";
+    public string Flavour { get; set; } = "";
 
     [JsonPropertyName("keyFile")]
-    public string KeyFile { get; set; } = @"C:\Windows\Build\Sync-Gitlab\K_Sync-Gitlab.txt";
+    public string KeyFile { get; set; } = "";
 
     [JsonPropertyName("tokenFile")]
-    public string TokenFile { get; set; } = @"C:\Windows\Build\Sync-Gitlab\C_Sync-Gitlab.txt";
+    public string TokenFile { get; set; } = "";
 
     [JsonPropertyName("token")]
     public string Token { get; set; } = "";
@@ -36,7 +48,7 @@ public class AppConfig
     public bool ShowOnlySubscribedFlavour { get; set; } = true;
 
     [JsonPropertyName("flavour_project_id")]
-    public int FlavourProjectId { get; set; } = 0;
+    public int FlavourProjectId { get; set; } = CiInt("PandaTools.GitLabProjectId");
 
     [JsonPropertyName("flavour_repo_path")]
     public string FlavourRepoPath { get; set; } = "flavours";
@@ -45,10 +57,10 @@ public class AppConfig
     public int FlavourPollSeconds { get; set; } = 300;
 
     [JsonPropertyName("app_project_id")]
-    public int AppProjectId { get; set; } = 526;
+    public int AppProjectId { get; set; } = CiInt("PandaTools.GitLabProjectId");
 
     [JsonPropertyName("app_repo_path")]
-    public string AppRepoPath { get; set; } = "service-delivery/pandatools";
+    public string AppRepoPath { get; set; } = CiString("PandaTools.GitLabRepoPath");
 
     [JsonPropertyName("token_expiry_warn_days")]
     public int TokenExpiryWarnDays { get; set; } = 14;
@@ -68,11 +80,11 @@ public class AppConfig
     [JsonPropertyName("runas_profiles")]
     public List<RunAsProfile> RunAsProfiles { get; set; } = new()
     {
-        new() { Name = "Workstation Admin", Username = @"", Password = "" }
+        new() { Name = "Admin Profile", Username = "", Password = "" }
     };
 
     //######################################
-    //Global Universal LAPS Configuration 
+    //Global Universal LAPS Configuration
     //######################################
     [JsonPropertyName("laps")]
     public LapsConfig Laps { get; set; } = new();
@@ -145,7 +157,7 @@ public class RunAsProfile
 
     public void EncryptPassword()
     {
-        LegacyPassword = ""; 
+        LegacyPassword = "";
 
         if (string.IsNullOrEmpty(Password))
         {
@@ -200,7 +212,6 @@ public class FlavourSection
     [JsonPropertyName("icon")]
     public string Icon { get; set; } = "";
 
-    //Hide the raw list from the property grid; the TreeView handles this!
     [Browsable(false)]
     [JsonPropertyName("items")]
     public List<FlavourItem> Items { get; set; } = new();
@@ -217,11 +228,10 @@ public class FlavourItem
     [Category("2. Action")]
     [DisplayName("Execution Type")]
     [Description("Select the type of action this item performs from the dropdown.")]
-    //DROPDOWN ENABLED
     [TypeConverter(typeof(ActionTypeConverter))]
     [JsonPropertyName("type")]
     public string Type { get; set; } = "url";
-    
+
     [Category("2. Action")]
     [DisplayName("Target / Value")]
     [Description("The URL, executable path, or command to run.")]
@@ -243,7 +253,7 @@ public class FlavourItem
     [Category("3. Modifiers")]
     [DisplayName("RunAs Profile")]
     [Description("Select a saved profile to automatically run this item as another user.")]
-    [TypeConverter(typeof(RunAsProfileConverter))] // <--- DYNAMIC PROFILE DROPDOWN ENABLED
+    [TypeConverter(typeof(RunAsProfileConverter))]
     [JsonPropertyName("runas_profile")]
     public string RunAsProfile { get; set; } = "";
 
@@ -279,13 +289,13 @@ public class FlavourItem
 public class ActionTypeConverter : StringConverter
 {
     public override bool GetStandardValuesSupported(ITypeDescriptorContext? context) => true;
-    public override bool GetStandardValuesExclusive(ITypeDescriptorContext? context) => true; // Forces dropdown ONLY (no typing)
-    
+    public override bool GetStandardValuesExclusive(ITypeDescriptorContext? context) => true;
+
     public override StandardValuesCollection GetStandardValues(ITypeDescriptorContext? context)
     {
-        return new StandardValuesCollection(new[] 
+        return new StandardValuesCollection(new[]
         {
-            "url", "incognito", "app", "explorer", "runas", 
+            "url", "incognito", "app", "explorer", "runas",
             "powershell", "script", "pandashell", "pandapassgen"
         });
     }
@@ -294,19 +304,15 @@ public class ActionTypeConverter : StringConverter
 public class RunAsProfileConverter : StringConverter
 {
     public override bool GetStandardValuesSupported(ITypeDescriptorContext? context) => true;
-    public override bool GetStandardValuesExclusive(ITypeDescriptorContext? context) => false; // Allow typing just in case
-    
+    public override bool GetStandardValuesExclusive(ITypeDescriptorContext? context) => false;
+
     public override StandardValuesCollection GetStandardValues(ITypeDescriptorContext? context)
     {
-        //Add a blank option at the top to clear the profile
-        var profiles = new List<string> { "" }; 
-        
-        //Dynamically load the user's saved profiles from settings!
+        var profiles = new List<string> { "" };
+
         if (ConfigLoader.AppConfig?.RunAsProfiles != null)
-        {
             profiles.AddRange(ConfigLoader.AppConfig.RunAsProfiles.Select(p => p.Name));
-        }
-        
+
         return new StandardValuesCollection(profiles);
     }
 }
