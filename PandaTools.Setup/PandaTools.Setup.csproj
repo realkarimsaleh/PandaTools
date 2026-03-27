@@ -7,8 +7,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationIcon>$(MSBuildThisFileDirectory)..\assets\PandaTools.ico</ApplicationIcon>
-    <Version>2.7.0</Version>
-    <AssemblyVersion>2.7.0</AssemblyVersion>
+    <Version>2.8.0</Version>
+    <AssemblyVersion>2.8.0</AssemblyVersion>
   </PropertyGroup>
 
   <ItemGroup>

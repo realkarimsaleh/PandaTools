@@ -3,7 +3,7 @@ stages:
   - release
 
 variables:
-  APP_VERSION: "2.7.0"
+  APP_VERSION: "2.8.0"
   PROJECT_NAME: "PandaTools"
 
 build:
@@ -20,7 +20,7 @@ build:
     ## CI_PROJECT_ID  → baked in as PandaTools.GitLabProjectId (used for both flavour and app update checks)
     ## CI_PROJECT_PATH → baked in as PandaTools.GitLabRepoPath (e.g. service-delivery/pandatools)
     ## These become first-run defaults in AppConfig when no config.json exists yet.
-    ## On a public/local build these properties are empty — no LBU values ship by default.
+    ## On a public/local build these properties are empty - no LBU values ship by default.
     ##
     - dotnet publish PandaTools.csproj `
         --configuration Release `
@@ -137,7 +137,7 @@ release:
           -ErrorAction Stop
         Write-Host "Deleted existing release $env:CI_COMMIT_TAG"
       } catch {
-        Write-Host "No existing release to delete — continuing"
+        Write-Host "No existing release to delete - continuing"
       }
 
       # Create the release with exe linked from package registry

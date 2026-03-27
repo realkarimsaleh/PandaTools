@@ -8,10 +8,8 @@ public static class ConfigLoader
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "PandaTools"
     );
-    public static readonly string ConfigPath = Path.Combine(ConfigDir, "config.json");
-    public static readonly string FlavourDir = Path.Combine(ConfigDir, "flavours");
-    
-    // Dynamic local flavour path based on the logged in Windows user!
+    public static readonly string ConfigPath       = Path.Combine(ConfigDir, "config.json");
+    public static readonly string FlavourDir       = Path.Combine(ConfigDir, "flavours");
     public static readonly string LocalFlavourPath = Path.Combine(FlavourDir, $"local_flavour_{Environment.UserName}.json");
 
     public static event Action? OnConfigReloaded;
@@ -20,9 +18,17 @@ public static class ConfigLoader
     private static FlavourConfig? _flavourConfig;
     private static FlavourConfig? _localFlavourConfig;
     private static readonly object _lock = new();
-    private static System.Timers.Timer?  _pollTimer;
-    private static FileSystemWatcher?    _configWatcher;
-    private static string _lastHash = "";
+    private static System.Timers.Timer? _pollTimer;
+    private static FileSystemWatcher?   _configWatcher;
+    private static string _lastDefaultsHash = "";
+
+    //######################################
+    //Per-file blob SHA cache for flavour sync
+    //Key   : flavour filename e.g. "LBU-DS-ServiceDesk.json"
+    //Value : last seen blob SHA from the GitLab Tree API
+    //######################################
+    private static readonly Dictionary<string, string> _flavourHashes = new();
+
     private static readonly HttpClient Http = new();
 
     public static readonly JsonSerializerOptions JsonOpts = new()
@@ -49,6 +55,7 @@ public static class ConfigLoader
             File.WriteAllText(ConfigPath, JsonSerializer.Serialize(new AppConfig(), JsonOpts));
 
         SeedFlavoursFromExeDir();
+        EnsureDefaultFlavour();
         EnsureTemplateFlavour();
         EnsureLocalFlavour();
 
@@ -85,7 +92,7 @@ public static class ConfigLoader
         var cfg = LoadAppConfig();
         cfg.Flavour = name;
         SerializeAndWrite(cfg);
-        _lastHash = "";
+        _flavourHashes.Clear();
         Reload();
         StartFlavourPoller();
     }
@@ -106,7 +113,6 @@ public static class ConfigLoader
     //######################################
     public static void Save(AppConfig cfg)
     {
-        // Encrypt any RunAs passwords before writing to disk
         foreach (var p in cfg.RunAsProfiles)
             p.EncryptPassword();
 
@@ -131,7 +137,6 @@ public static class ConfigLoader
                     var fc   = JsonSerializer.Deserialize<FlavourConfig>(json, JsonOpts);
                     return !(fc?.Hidden ?? false);
                 }
-
                 catch { return true; }
             })
             .OrderBy(n => n)
@@ -152,6 +157,109 @@ public static class ConfigLoader
             if (!File.Exists(dest))
                 File.Copy(file, dest, overwrite: false);
         }
+    }
+
+    //######################################
+    //Seed Default flavour on first run if it does not exist
+    //This gives new users a working visible menu with no configuration needed.
+    //Org flavours fetched from GitLab will appear alongside it once a token is set.
+    //######################################
+    private static void EnsureDefaultFlavour()
+    {
+        var path = Path.Combine(FlavourDir, "Default.json");
+        if (File.Exists(path)) return;
+
+        var defaultFlavour = new FlavourConfig
+        {
+            Version        = "1.0",
+            Hidden         = false,
+            ShowPandaShell = true,
+            ShowPandaPassGen = true,
+            Menu           = new()
+            {
+                new()
+                {
+                    Section = "Local Scripts",
+                    Icon    = "⚡",
+                    Items   = new()
+                    {
+                        new()
+                        {
+                            Label = "Flush DNS",
+                            Type = "powershell",
+                            Value = "ipconfig /flushdns"
+                        },
+                        new()
+                        {
+                            Label = "Restart Wi-Fi",
+                            Type = "powershell",
+                            Value = "Restart-NetAdapter -Name 'Wi-Fi' -Confirm:"
+                        }
+                    }
+                },
+                new()
+                {
+                    Section = "Web Tools",
+                    Icon    = "🌐",
+                    Items   = new()
+                    {
+                        new()
+                        {
+                            Label = "Google",
+                            Type = "url",
+                            Value = "https://www.google.com"
+                        },
+                        new() { Label = "Google (Incognito)", Type = "incognito", Value = "https://www.google.com" },
+                    }
+                },
+                new()
+                {
+                    Section = "Applications",
+                    Icon    = "🖥️",
+                    Items   = new()
+                    {
+                        new()
+                        {
+                            Label = "Notepad",
+                            Type = "app", 
+                            Value = @"C:\Windows\System32\notepad.exe"
+                        },
+                        new()
+                        {
+                            Label = "Task Manager",
+                            Type = "app",
+                            Value = @"C:\Windows\System32\Taskmgr.exe"
+                        },
+                        new()
+                        {
+                            Label = "Event Viewer",
+                            Type = "app", 
+                            Value = @"C:\Windows\System32\eventvwr.msc"
+                        }
+                    }
+                },
+                new()
+                {
+                    Section = "PandaTools Utilities",
+                    Icon    = "🐼",
+                    Items   = new()
+                    {
+                        new()
+                        {
+                            Label = "PandaShell",
+                            Type = "pandashell"
+                        },
+                        new()
+                        {
+                            Label = "PandaPassGen",
+                            Type = "pandapassgen"
+                        }
+                    }
+                }
+            }
+        };
+
+        File.WriteAllText(path, JsonSerializer.Serialize(defaultFlavour, JsonOpts));
     }
 
     //######################################
@@ -181,8 +289,18 @@ public static class ConfigLoader
                     Icon    = "🌐",
                     Items   = new()
                     {
-                        new() { Label = "Google",           Type = "url",       Value = "https://google.com" },
-                        new() { Label = "Google Incognito", Type = "incognito", Value = "https://google.com" },
+                        new()
+                        {
+                            Label = "Google",
+                            Type = "url",
+                            Value = "https://google.com"
+                    },
+                        new()
+                        {
+                            Label = "Google Incognito",
+                            Type = "incognito",
+                            Value = "https://google.com"
+                        }
                     }
                 },
                 new()
@@ -191,8 +309,17 @@ public static class ConfigLoader
                     Icon    = "📜",
                     Items   = new()
                     {
-                        new() { Label = "Example GitLab Script", Type = "script",     ProjectId = 0, FilePath = "Scripts/Example.ps1", Branch = "main" },
-                        new() { Label = "Example PowerShell",    Type = "powershell", Value = "Write-Host 'Hello from PandaTools'" },
+                        new()
+                        {
+                            Label = "Example GitLab Script",
+                            Type = "script",
+                            ProjectId = 0, FilePath = "Scripts/Example.ps1", Branch = "main" },
+                        new()
+                        {
+                            Label = "Example PowerShell",
+                            Type = "powershell",
+                            Value = "Write-Host 'Hello from PandaTools'"
+                        },
                     }
                 },
                 new()
@@ -201,9 +328,37 @@ public static class ConfigLoader
                     Icon    = "🖥️",
                     Items   = new()
                     {
-                        new() { Label = "NotePad",          Type = "app",   Value = @"C:\Windows\System32\notepad.exe" },
-                        new() { Label = "NotePad (RunAs)",  Type = "runas", Value = @"C:\Windows\System32\notepad.exe", RunAsProfile = "Workstation Admin" },
-                        new() { Label = "NotePad (UAC)",    Type = "app",   Value = @"C:\Windows\System32\notepad.exe", Admin = true },
+                        new()
+                        {
+                            Label = "Notepad",
+                            Type = "app",
+                            Value = @"C:\Windows\System32\notepad.exe"
+                        },
+                        new()
+                        {
+                            Label = "Notepad (UAC)",
+                            Type = "app",
+                            Value = @"C:\Windows\System32\notepad.exe",
+                            Admin = true
+                        },
+                    }
+                },
+                 new()
+                {
+                    Section = "PandaTools Utilities",
+                    Icon    = "🐼",
+                    Items   = new()
+                    {
+                        new()
+                        {
+                            Label = "PandaShell",
+                            Type = "pandashell"
+                        },
+                        new()
+                        {
+                            Label = "PandaPassGen",
+                            Type = "pandapassgen"
+                        }
                     }
                 }
             }
@@ -213,7 +368,7 @@ public static class ConfigLoader
     }
 
     //######################################
-    // Ensure Personal Local Flavour exists
+    //Ensure Personal Local Flavour exists
     //######################################
     private static void EnsureLocalFlavour()
     {
@@ -232,7 +387,6 @@ public static class ConfigLoader
             var cfg = JsonSerializer.Deserialize<AppConfig>(
                 File.ReadAllText(ConfigPath), JsonOpts) ?? new AppConfig();
 
-            //Decrypt RunAs passwords; also auto-migrate any legacy plain-text passwords.
             bool needsMigration = false;
             foreach (var p in cfg.RunAsProfiles)
             {
@@ -243,10 +397,8 @@ public static class ConfigLoader
 
             if (needsMigration)
             {
-                //Encrypt and re-save to clear plain-text passwords from disk
                 foreach (var p in cfg.RunAsProfiles) p.EncryptPassword();
                 SerializeAndWrite(cfg);
-                //Decrypt again so the returned object has in-memory passwords populated
                 foreach (var p in cfg.RunAsProfiles) p.DecryptPassword();
             }
 
@@ -270,9 +422,6 @@ public static class ConfigLoader
         catch { return new FlavourConfig(); }
     }
 
-    //######################################
-    //Serialise helper (does NOT encrypt - callers must do that first)
-    //######################################
     private static void SerializeAndWrite(AppConfig cfg) =>
         File.WriteAllText(ConfigPath, JsonSerializer.Serialize(cfg, JsonOpts));
 
@@ -284,7 +433,7 @@ public static class ConfigLoader
         _configWatcher?.Dispose();
         _configWatcher = new FileSystemWatcher(ConfigDir)
         {
-            Filter              = "*.json", // Watch all json files in the root dir
+            Filter              = "*.json",
             NotifyFilter        = NotifyFilters.LastWrite,
             EnableRaisingEvents = true
         };
@@ -294,17 +443,25 @@ public static class ConfigLoader
     }
 
     //######################################
-    //Poll GitLab for flavour changes
+    //Poll GitLab for flavour folder changes and defaults
     //######################################
     private static void StartFlavourPoller()
     {
         _pollTimer?.Dispose();
         var ms = Math.Max(30, AppConfig.FlavourPollSeconds) * 1000.0;
         _pollTimer = new System.Timers.Timer(ms) { AutoReset = true };
-        _pollTimer.Elapsed += async (_, _) => await CheckFlavourUpdateAsync();
+        _pollTimer.Elapsed += async (_, _) =>
+        {
+            await CheckFlavourUpdateAsync();
+            await CheckDefaultsUpdateAsync();
+        };
         _pollTimer.Start();
     }
 
+    //######################################
+    //Flavour folder sync via GitLab Tree API
+    //Lists every .json in flavours/, downloads new or changed files.
+    //######################################
     public static async Task CheckFlavourUpdateAsync()
     {
         try
@@ -319,23 +476,180 @@ public static class ConfigLoader
                 Http.DefaultRequestHeaders.UserAgent.ParseAdd("PandaTools");
 
             var apiBase  = cfg.UrlServer.TrimEnd('/') + "/api/v4";
-            var repoPath = $"{cfg.FlavourRepoPath.TrimEnd('/')}/{cfg.Flavour}.json";
-            var encoded  = Uri.EscapeDataString(repoPath);
-            var metaUrl  = $"{apiBase}/projects/{cfg.FlavourProjectId}/repository/files/{encoded}?ref=main";
+            var repoPath = cfg.FlavourRepoPath.TrimEnd('/');
 
-            using var cts    = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            var metaJson     = await Http.GetStringAsync(metaUrl, cts.Token);
-            var meta         = JsonSerializer.Deserialize<JsonElement>(metaJson);
-            var latest       = meta.GetProperty("last_commit_id").GetString() ?? "";
+            var treeUrl = $"{apiBase}/projects/{cfg.FlavourProjectId}/repository/tree" +
+                          $"?path={Uri.EscapeDataString(repoPath)}&ref=main&per_page=100";
 
-            if (latest == _lastHash || latest == "") return;
+            using var cts   = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var treeJson    = await Http.GetStringAsync(treeUrl, cts.Token);
+            var treeEntries = JsonSerializer.Deserialize<JsonElement[]>(treeJson) ?? Array.Empty<JsonElement>();
 
-            var rawUrl  = $"{apiBase}/projects/{cfg.FlavourProjectId}/repository/files/{encoded}/raw?ref=main";
-            var content = await Http.GetStringAsync(rawUrl);
-            await File.WriteAllTextAsync(Path.Combine(FlavourDir, $"{cfg.Flavour}.json"), content);
-            _lastHash = latest;
-            Reload();
+            var anyChanged = false;
+
+            foreach (var entry in treeEntries)
+            {
+                if (entry.GetProperty("type").GetString() != "blob") continue;
+
+                var fileName = entry.GetProperty("name").GetString() ?? "";
+                if (!fileName.EndsWith(".json", StringComparison.OrdinalIgnoreCase)) continue;
+                if (fileName.StartsWith("local_flavour_", StringComparison.OrdinalIgnoreCase)) continue;
+                if (fileName.Equals("_Template.json", StringComparison.OrdinalIgnoreCase)) continue;
+
+                var blobSha   = entry.GetProperty("id").GetString() ?? "";
+                var localPath = Path.Combine(FlavourDir, fileName);
+
+                if (_flavourHashes.TryGetValue(fileName, out var cachedSha) &&
+                    cachedSha == blobSha &&
+                    File.Exists(localPath))
+                    continue;
+
+                var filePath    = $"{repoPath}/{fileName}";
+                var encodedPath = Uri.EscapeDataString(filePath);
+                var rawUrl      = $"{apiBase}/projects/{cfg.FlavourProjectId}/repository/files/{encodedPath}/raw?ref=main";
+
+                var content = await Http.GetStringAsync(rawUrl);
+                await File.WriteAllTextAsync(localPath, content);
+                _flavourHashes[fileName] = blobSha;
+                anyChanged = true;
+            }
+
+            if (anyChanged) Reload();
+        }
+
+        catch { /* off-network or not configured - fail silently */ }
+    }
+
+    //######################################
+    //Defaults update check - poll cycle, seed-only
+    //######################################
+    public static async Task CheckDefaultsUpdateAsync()
+    {
+        try
+        {
+            var cfg      = AppConfig;
+            var defaults = await FetchOrgDefaultsAsync();
+            var changed  = ApplyOrgDefaults(cfg, defaults, force: false);
+            if (changed) PersistConfig(cfg);
         }
         catch { /* off-network or not configured - fail silently */ }
+    }
+
+    //######################################
+    //Force apply org defaults - called by Restore Defaults button
+    //######################################
+    public static async Task<string> ForceApplyOrgDefaultsAsync()
+    {
+        try
+        {
+            var cfg      = AppConfig;
+            var defaults = await FetchOrgDefaultsAsync();
+            var changed  = ApplyOrgDefaults(cfg, defaults, force: true);
+
+            if (changed)
+            {
+                PersistConfig(cfg);
+                return "✅ Org defaults applied — LAPS, token warn days and profile seeds restored";
+            }
+
+            return defaults is null
+                ? "⚠️ Org defaults unavailable — not configured or off-network"
+                : "✅ Already up to date with org defaults";
+        }
+
+        catch (Exception ex)
+        {
+            return $"❌ Failed to apply org defaults: {ex.Message}";
+        }
+    }
+
+    //######################################
+    //Fetch defaults.json from the config repo
+    //Returns null if not configured, off-network, or parse fails.
+    //######################################
+    private static async Task<OrgDefaults?> FetchOrgDefaultsAsync()
+    {
+        var cfg = AppConfig;
+        if (cfg.FlavourProjectId == 0) return null;
+        if (string.IsNullOrWhiteSpace(cfg.DefaultsRepoPath)) return null;
+
+        var token = TokenManager.GetToken();
+        Http.DefaultRequestHeaders.Remove("PRIVATE-TOKEN");
+        if (token != null) Http.DefaultRequestHeaders.Add("PRIVATE-TOKEN", token);
+        if (!Http.DefaultRequestHeaders.UserAgent.Any())
+            Http.DefaultRequestHeaders.UserAgent.ParseAdd("PandaTools");
+
+        var apiBase = cfg.UrlServer.TrimEnd('/') + "/api/v4";
+        var encoded = Uri.EscapeDataString(cfg.DefaultsRepoPath);
+        var metaUrl = $"{apiBase}/projects/{cfg.FlavourProjectId}/repository/files/{encoded}?ref=main";
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var metaJson  = await Http.GetStringAsync(metaUrl, cts.Token);
+        var meta      = JsonSerializer.Deserialize<JsonElement>(metaJson);
+        var latest    = meta.GetProperty("last_commit_id").GetString() ?? "";
+
+        if (latest != "" && latest == _lastDefaultsHash) return null;
+
+        var rawUrl  = $"{apiBase}/projects/{cfg.FlavourProjectId}/repository/files/{encoded}/raw?ref=main";
+        var rawJson = await Http.GetStringAsync(rawUrl);
+        var result  = JsonSerializer.Deserialize<OrgDefaults>(rawJson, JsonOpts);
+
+        if (result is not null) _lastDefaultsHash = latest;
+        return result;
+    }
+
+    //######################################
+    //Smart merge org defaults into AppConfig
+    //######################################
+    private static bool ApplyOrgDefaults(AppConfig cfg, OrgDefaults? defaults, bool force)
+    {
+        if (defaults is null) return false;
+
+        var changed = false;
+
+        if (defaults.Laps is not null)
+        {
+            var notConfigured = string.IsNullOrWhiteSpace(cfg.Laps.DomainController);
+            if (force || notConfigured) { cfg.Laps = defaults.Laps; changed = true; }
+        }
+
+        if (defaults.TokenExpiryWarnDays.HasValue)
+        {
+            var notConfigured = cfg.TokenExpiryWarnDays == 0;
+            if (force || notConfigured) { cfg.TokenExpiryWarnDays = defaults.TokenExpiryWarnDays.Value; changed = true; }
+        }
+
+        if (defaults.RunAsProfiles is not null)
+        {
+            foreach (var orgProfile in defaults.RunAsProfiles)
+            {
+                var exists = cfg.RunAsProfiles.Any(p =>
+                    string.Equals(p.Name, orgProfile.Name, StringComparison.OrdinalIgnoreCase));
+
+                if (!exists)
+                {
+                    cfg.RunAsProfiles.Add(new RunAsProfile
+                    {
+                        Name     = orgProfile.Name,
+                        Username = orgProfile.Username,
+                        Password = ""
+                    });
+                    changed = true;
+                }
+            }
+        }
+
+        return changed;
+    }
+
+    //######################################
+    //Persist config after a defaults apply
+    //######################################
+    private static void PersistConfig(AppConfig cfg)
+    {
+        foreach (var p in cfg.RunAsProfiles) p.EncryptPassword();
+        SerializeAndWrite(cfg);
+        foreach (var p in cfg.RunAsProfiles) p.DecryptPassword();
+        Reload();
     }
 }

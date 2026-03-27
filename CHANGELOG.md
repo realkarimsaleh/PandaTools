@@ -1,11 +1,25 @@
 # PandaTools Changelog
 
+## [2.8.0] - 27/03/26
+### Added
+- **Org Defaults Syncing** - introduced `defaults/defaults.json` in the config companion repo; LAPS configuration, token expiry warn days, and RunAs profile seeds are polled on the same cycle as flavours and smart-merged into each agent's local config automatically
+- **Seed-Only vs Force Apply** - org defaults use a two-mode merge strategy: poll cycle applies LAPS and token warn days only if not yet configured (seed-only), while the Restore Defaults button in Settings forces an overwrite regardless of current values; RunAs profiles are always seed-only to preserve stored passwords
+- **Full Flavour Folder Sync** - flavour polling now uses the GitLab Tree API to list the entire `flavours/` directory; any new file added to the repo is automatically downloaded and appears in the flavour dropdown without any manifest or manual steps
+- **Default Flavour** - a `Default.json` is now seeded on first run if no flavours exist, giving new users a working visible menu immediately with local scripts (Flush DNS, Restart Wi-Fi, Clear Temp), web tools, and common applications; no configuration required
+- **`defaults_repo_path` config field** - new field in `config.json` pointing to the defaults file inside the config repo; set to empty string to disable org defaults syncing entirely
+- **`OrgDefaults` and `OrgRunAsProfile` models** - new lean data classes in `AppConfig.cs` representing the org defaults schema, keeping the merge logic cleanly separated from the main app config
+ 
+### Changed
+- **Menu Editor overhauled** - replaced the PropertyGrid in `FlavourEditorWindow` with a hand-crafted context-aware detail panel; selecting a folder shows Name and Icon only, selecting an item shows Label, Type, and only the fields relevant to that type - Value/Values/RunAs for URL items, ProjectId/FilePath/Branch for scripts, and so on; fields update the model live as you type
+- **Installer header** - replaced the 🐼 emoji in the installer header with the real app icon loaded via `Icon.ExtractAssociatedIcon`; `ClientSize` replaces `Size` to fix the button cutoff caused by the title bar consuming form height
+- **Restore Defaults button** - now async; calls `ForceApplyOrgDefaultsAsync` to pull and apply the latest org defaults from the config repo, then reloads the warn days spinner from the freshly applied config; confirmation dialog clearly describes what will and will not be changed
+
 ## [2.7.0] - 25/03/26
 ### Added
 - **Provision System** - introduced a single `provision.json` file that can be placed alongside the installer to automatically seed `config.json` and flavour files on first install, enabling zero-touch LBU deployments without any manual configuration
 - **Embedded Flavours** - `provision.json` now embeds flavour definitions directly under a `provision_flavours` key; the installer extracts and writes each as a standalone `.json` file, eliminating the need for a separate flavour folder in the deployment share
 - **Installer Provision Browse** - the installer UI now includes a provision file row with a Browse button and live validation feedback, allowing IT to point to a `provision.json` anywhere on disk rather than relying solely on auto-detection
-- **Update Mode Detection** - the installer now reads the existing `InstallLocation` from the registry on startup; if PandaTools is already installed the UI switches to update mode, locks the install path, hides the provision panel entirely, and changes the button to "Update" — config and flavours are never touched on updates
+- **Update Mode Detection** - the installer now reads the existing `InstallLocation` from the registry on startup; if PandaTools is already installed the UI switches to update mode, locks the install path, hides the provision panel entirely, and changes the button to "Update" - config and flavours are never touched on updates
 - **CI Build Injection** - `GitLabUrl`, `GitLabProjectId`, and `GitLabRepoPath` are now baked into the binary at compile time via `RuntimeHostConfigurationOption`, using `CI_SERVER_URL`, `CI_PROJECT_ID`, and `CI_PROJECT_PATH` from the GitLab CI pipeline; these become first-run defaults when no `config.json` exists, with empty fallbacks on public or local builds
 - **Separate Flavours Repo Support** - flavour polling is now fully decoupled from the app repo; `flavour_project_id` in `config.json` can point to any GitLab project, enabling a dedicated `pandatools-flavours` repo for clean separation between app releases and menu management
  

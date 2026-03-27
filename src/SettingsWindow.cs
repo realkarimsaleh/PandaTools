@@ -296,7 +296,7 @@ public class SettingsWindow : Form
         });
 
         Controls.Add(grpFlavour);
-        y += 144; // Adjusted to account for new checkbox height
+        y += 144;
 
         //######################################
         //Browser
@@ -533,23 +533,40 @@ public class SettingsWindow : Form
         grpAdv.Controls.Add(btnLapsSettings);
 
         var btnRestoreDefaults = MakeButton("♻️ Restore Defaults", LblL + (advBtnW + 6) * 2, 168, advBtnW);
-        btnRestoreDefaults.Click += (_, _) =>
+        btnRestoreDefaults.Click += async (_, _) =>
         {
-            if (MessageBox.Show("Reset advanced settings and UI fields to their default values?\n(This will not delete your RunAs profiles or SSH bookmarks)", "Restore Defaults", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
+            if (MessageBox.Show(
+                "Reset advanced settings and UI fields to their default values?\n\n" +
+                "LAPS config, token warn days, and RunAs profile seeds will be restored from org defaults (pandatools-config).\n\n" +
+                "Your RunAs profile passwords and personal settings will not be deleted.",
+                "Restore Defaults", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
             {
-                _urlBox!.Text = "https://gitlab.leedsbeckett.ac.uk";
-                _pollBox.Value = 300;
-                _diagCheck.Checked = false;
-                _manualCheck!.Checked = false;
+                //######################################
+                //Reset UI fields to blank/safe defaults
+                //Org-managed fields (LAPS, token warn days, RunAs seeds) are restored
+                //from pandatools-config via ForceApplyOrgDefaultsAsync below.
+                //######################################
+                _urlBox!.Text                 = "";
+                _pollBox.Value                = 300;
+                _diagCheck.Checked            = false;
+                _manualCheck!.Checked         = false;
                 _onlySubscribedCheck!.Checked = false;
-                _warnDaysBox.Value = 14;
-                _appProjectIdBox.Value = 526;
-                _appRepoPathBox!.Text = "service-delivery/pandatools";
+                _warnDaysBox.Value            = 0;
+                _appProjectIdBox.Value        = 0;
+                _appRepoPathBox!.Text         = "";
                 _urlBrowserCombo!.SelectedItem = "Default";
-                _urlBrowserPathBox!.Text = "";
-                _browserCombo!.SelectedItem = "Default";
-                _browserPathBox!.Text = "";
-                Status("✅ Defaults restored in UI. Click 'Save & Apply' to keep changes.");
+                _urlBrowserPathBox!.Text      = "";
+                _browserCombo!.SelectedItem   = "Default";
+                _browserPathBox!.Text         = "";
+
+                Status("⏳ Restoring org defaults...");
+
+                var orgResult = await ConfigLoader.ForceApplyOrgDefaultsAsync();
+
+                //Reload the warn days spinner from config after org defaults are applied
+                _warnDaysBox.Value = Math.Max(1, ConfigLoader.AppConfig.TokenExpiryWarnDays);
+
+                Status($"{orgResult} - click 'Save & Apply' to keep UI changes.");
             }
         };
         grpAdv.Controls.Add(btnRestoreDefaults);
@@ -578,7 +595,9 @@ public class SettingsWindow : Form
         Controls.AddRange(new Control[] { btnCheckFlavour, btnCheckApp, btnSaveApply, btnClose });
         y += 34;
 
-        // ── Status ─────────────────────────────────────────────────────
+        //######################################
+        //Status
+        //######################################
         _statusLabel = new Label
         {
             Text      = "Ready",

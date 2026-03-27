@@ -11,8 +11,8 @@ public class AppConfig
     //######################################
     //CI Build Injection Helpers
     //Reads values baked in at compile time by the GitLab CI pipeline.
-    //On a public or local build these return "" or 0 — no LBU values ship by default.
-    //config.json always wins over these if it already exists — first-run defaults only.
+    //On a public or local build these return "" or 0 - no LBU values ship by default.
+    //config.json always wins over these if it already exists - first-run defaults only.
     //######################################
     private static string CiString(string key) =>
         AppContext.GetData(key) as string is { Length: > 0 } v ? v : "";
@@ -24,7 +24,7 @@ public class AppConfig
     public string UrlServer { get; set; } = CiString("PandaTools.GitLabUrl");
 
     [JsonPropertyName("flavour")]
-    public string Flavour { get; set; } = "";
+    public string Flavour { get; set; } = "Default";
 
     [JsonPropertyName("keyFile")]
     public string KeyFile { get; set; } = "";
@@ -55,6 +55,15 @@ public class AppConfig
 
     [JsonPropertyName("flavour_poll_seconds")]
     public int FlavourPollSeconds { get; set; } = 300;
+
+    //######################################
+    //Defaults repo path
+    //Path to defaults.json inside the pandatools-config repo.
+    //Polled on the same cycle as flavours and smart-merged into config.
+    //Set to "" to disable org defaults syncing entirely.
+    //######################################
+    [JsonPropertyName("defaults_repo_path")]
+    public string DefaultsRepoPath { get; set; } = "defaults/defaults.json";
 
     [JsonPropertyName("app_project_id")]
     public int AppProjectId { get; set; } = CiInt("PandaTools.GitLabProjectId");
@@ -171,6 +180,35 @@ public class RunAsProfile
     }
 
     public override string ToString() => Name;
+}
+
+//######################################
+//Org defaults model - matches defaults/defaults.json in pandatools-config repo
+//Only fields driven by org policy are present here.
+//######################################
+public class OrgDefaults
+{
+    [JsonPropertyName("version")]
+    public string Version { get; set; } = "";
+
+    [JsonPropertyName("token_expiry_warn_days")]
+    public int? TokenExpiryWarnDays { get; set; }
+
+    [JsonPropertyName("laps")]
+    public LapsConfig? Laps { get; set; }
+
+    [JsonPropertyName("runas_profiles")]
+    public List<OrgRunAsProfile>? RunAsProfiles { get; set; }
+}
+
+//Slim RunAs model for defaults - only name and username, no password fields
+public class OrgRunAsProfile
+{
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = "";
+
+    [JsonPropertyName("username")]
+    public string Username { get; set; } = "";
 }
 
 public class FlavourConfig

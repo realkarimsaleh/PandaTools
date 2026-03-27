@@ -238,7 +238,7 @@ public static class Updater
         MessageBox.Show(
             $"PandaTools {version} has been downloaded.\n\n" +
             "The installer will now launch.\n" +
-            "PandaTools will close automatically — it will restart once the install is complete.",
+            "PandaTools will close automatically - it will restart once the install is complete.",
             "Update Ready", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
 
