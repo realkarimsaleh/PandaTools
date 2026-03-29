@@ -139,7 +139,7 @@ public class SettingsWindow : Form
         grpConn.Controls.Add(MakeLabel("Project ID:", LblL, 52));
         _projectIdBox = new NumericUpDown
         {
-            Minimum = 0, Maximum = 999999,
+            Minimum = 0, Maximum = 9999999999,
             Value   = Math.Max(0, cfg.FlavourProjectId),
             Left    = FldL, Top = 50, Width = 120,
             Font    = new Font("Segoe UI", 9f)
@@ -504,7 +504,7 @@ public class SettingsWindow : Form
         grpAdv.Controls.Add(MakeLabel("App Project ID:", LblL, 82));
         _appProjectIdBox = new NumericUpDown
         {
-            Minimum = 0, Maximum = 999999,
+            Minimum = 0, Maximum = 9999999999,
             Value   = Math.Max(0, cfg.AppProjectId),
             Left    = FldL, Top = 80, Width = 120,
             Font    = new Font("Segoe UI", 9f)

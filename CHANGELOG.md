@@ -1,5 +1,9 @@
 # PandaTools Changelog
 
+## [2.8.2] - 29/03/26
+### Fixed
+- **Project ID field overflow** - increased the maximum value on both the Config Project ID and App Project ID spinners from 999,999 to 999,999,999 to accommodate large GitLab project IDs
+
 ## [2.8.1] - 29/03/26
 ### Changed
 - **Installer header** - subtitle text now aligns with the title rather than the icon, giving the header a cleaner left-aligned appearance
