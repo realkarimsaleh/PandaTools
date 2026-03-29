@@ -1,5 +1,18 @@
 # PandaTools Changelog
 
+## [2.9.0] - 30/03/26
+### Added
+- **Dual GitLab server support** - `app_url_server` field added to `config.json` allowing the app update checker to point at a different GitLab instance from the config and flavour server; defaults to `https://gitlab.com` for public open source builds
+- **Same as Config Server checkbox** - a checkbox in Settings → Connection lets you mirror the app server URL from the config server with one click; the field greys out when ticked and updates automatically on save
+
+### Changed
+- **Settings redesigned with sidebar navigation** - replaced the tall single-column scrolling layout with a compact 760 × 520 window featuring a dark sidebar and five swappable content sections: Connection, Flavour, Browser, RunAs Profiles, and Advanced
+- **App update fields moved to Connection** - App Server URL, App Project ID, and App Repo Path now live under Connection alongside the config server settings, keeping all server and credential configuration in one place
+- **Settings header** - replaced the 🐼 emoji with the real app icon loaded from the executable, matching the installer; title text is now vertically centred against the icon
+- **Status label** - moved above the footer buttons so status messages no longer compete with button labels for space
+- **"GitLab Server" renamed to "Config Server"** - makes it clear this field is for flavour and defaults polling, separate from the app update server
+- **Updater now skips auth token for public repos** - when `app_url_server` differs from `url_server`, the PRIVATE-TOKEN header is omitted so public GitLab.com repos work without needing a second token
+
 ## [2.8.2] - 29/03/26
 ### Fixed
 - **Project ID field overflow** - increased the maximum value on both the Config Project ID and App Project ID spinners from 999,999 to 999,999,999 to accommodate large GitLab project IDs

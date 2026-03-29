@@ -12,11 +12,11 @@ using System.Reflection;
 
 [assembly: System.Reflection.AssemblyCompanyAttribute("PandaTools")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
-[assembly: System.Reflection.AssemblyFileVersionAttribute("2.8.2")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("2.8.2+ea4cef6faf1661825839a2796930930b7ba986e0")]
+[assembly: System.Reflection.AssemblyFileVersionAttribute("2.9.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("2.9.0+f54087ee93d1ecc2d9ee4839698a852ce0493699")]
 [assembly: System.Reflection.AssemblyProductAttribute("PandaTools")]
 [assembly: System.Reflection.AssemblyTitleAttribute("PandaTools")]
-[assembly: System.Reflection.AssemblyVersionAttribute("2.8.2")]
+[assembly: System.Reflection.AssemblyVersionAttribute("2.9.0")]
 [assembly: System.Runtime.Versioning.TargetPlatformAttribute("Windows7.0")]
 [assembly: System.Runtime.Versioning.SupportedOSPlatformAttribute("Windows7.0")]
 

@@ -65,6 +65,15 @@ public class AppConfig
     [JsonPropertyName("defaults_repo_path")]
     public string DefaultsRepoPath { get; set; } = "defaults/defaults.json";
 
+    //######################################
+    //App update server - can differ from the config/flavour server
+    //e.g. app hosted on gitlab.com while config lives on internal GitLab
+    //Defaults to gitlab.com for public open source builds.
+    //If blank, falls back to url_server.
+    //######################################
+    [JsonPropertyName("app_url_server")]
+    public string AppUrlServer { get; set; } = "https://gitlab.com";
+
     [JsonPropertyName("app_project_id")]
     public int AppProjectId { get; set; } = CiInt("PandaTools.GitLabProjectId");
 

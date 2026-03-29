@@ -19,7 +19,7 @@ public static class Updater
         try
         {
             var cfg       = ConfigLoader.AppConfig;
-            var baseUrl   = cfg.UrlServer.TrimEnd('/');
+            var baseUrl   = (string.IsNullOrWhiteSpace(cfg.AppUrlServer) ? cfg.UrlServer : cfg.AppUrlServer).TrimEnd('/');
             var repoPath  = cfg.AppRepoPath.Trim('/');
             var projectId = cfg.AppProjectId;
 
@@ -34,7 +34,11 @@ public static class Updater
             }
 
 
-            PrepareHeaders();
+            //Only send the auth token if the app server is the same as the internal config server.
+            //Public repos on gitlab.com work without a token.
+            var appServerIsInternal = string.IsNullOrWhiteSpace(cfg.AppUrlServer) ||
+                cfg.AppUrlServer.TrimEnd('/').Equals(cfg.UrlServer.TrimEnd('/'), StringComparison.OrdinalIgnoreCase);
+            PrepareHeaders(includeToken: appServerIsInternal);
 
 
             var apiBase     = $"{baseUrl}/api/v4";
@@ -307,17 +311,20 @@ public static class Updater
 
     //######################################
     //Auth headers
+    //includeToken: false when hitting a public repo on a different GitLab instance
     //######################################
-    private static void PrepareHeaders()
+    private static void PrepareHeaders(bool includeToken = true)
     {
         if (!Http.DefaultRequestHeaders.UserAgent.Any())
             Http.DefaultRequestHeaders.UserAgent.ParseAdd("PandaTools");
 
-
-        var token = TokenManager.GetToken();
         Http.DefaultRequestHeaders.Remove("PRIVATE-TOKEN");
-        if (token != null)
-            Http.DefaultRequestHeaders.Add("PRIVATE-TOKEN", token);
+        if (includeToken)
+        {
+            var token = TokenManager.GetToken();
+            if (token != null)
+                Http.DefaultRequestHeaders.Add("PRIVATE-TOKEN", token);
+        }
     }
 
 
