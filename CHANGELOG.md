@@ -1,5 +1,13 @@
 # PandaTools Changelog
 
+## [2.8.1] - 29/03/26
+### Changed
+- **Installer header** - subtitle text now aligns with the title rather than the icon, giving the header a cleaner left-aligned appearance
+
+### Fixed
+- **Installer button layout** - switched from `Size` to `ClientSize` so the form height is calculated correctly and buttons are no longer cut off at the bottom
+- **Linguistic** - fixed various wording and punctuation errors across the UI
+
 ## [2.8.0] - 27/03/26
 ### Added
 - **Org Defaults Syncing** - introduced `defaults/defaults.json` in the config companion repo; LAPS configuration, token expiry warn days, and RunAs profile seeds are polled on the same cycle as flavours and smart-merged into each agent's local config automatically

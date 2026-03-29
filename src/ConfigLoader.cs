@@ -549,11 +549,11 @@ public static class ConfigLoader
             if (changed)
             {
                 PersistConfig(cfg);
-                return "✅ Org defaults applied — LAPS, token warn days and profile seeds restored";
+                return "✅ Org defaults applied - LAPS, token warn days and profile seeds restored";
             }
 
             return defaults is null
-                ? "⚠️ Org defaults unavailable — not configured or off-network"
+                ? "⚠️ Org defaults unavailable - not configured or off-network"
                 : "✅ Already up to date with org defaults";
         }
 

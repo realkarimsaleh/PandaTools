@@ -101,7 +101,7 @@ public class InstallerForm : Form
                 : $"Version {AppVersion}   ·   {Publisher}",
             ForeColor = Color.FromArgb(160, 160, 160),
             Font      = new Font("Segoe UI", 8.5f),
-            Bounds    = new Rectangle(20, 50, 450, 16),
+            Bounds    = new Rectangle(58, 50, 412, 16),
             AutoSize  = false
         });
 
@@ -127,9 +127,9 @@ public class InstallerForm : Form
         //######################################
         //Options
         //######################################
-        _chkDesktop   = new CheckBox { Text = "Create Desktop shortcut",           Bounds = new Rectangle(20, 150, 300, 22), Checked = true  };
+        _chkDesktop   = new CheckBox { Text = "Create Desktop shortcut",           Bounds = new Rectangle(20, 150, 300, 22), Checked = false };
         _chkStartMenu = new CheckBox { Text = "Create Start Menu shortcut",        Bounds = new Rectangle(20, 172, 300, 22), Checked = true  };
-        _chkStartup   = new CheckBox { Text = "Run PandaTools at Windows startup", Bounds = new Rectangle(20, 194, 300, 22), Checked = false };
+        _chkStartup   = new CheckBox { Text = "Run PandaTools at Windows startup", Bounds = new Rectangle(20, 194, 300, 22), Checked = true  };
 
         //######################################
         //Provision panel - fresh install only
