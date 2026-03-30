@@ -10,9 +10,6 @@ public class AppConfig
 {
     //######################################
     //CI Build Injection Helpers
-    //Reads values baked in at compile time by the GitLab CI pipeline.
-    //On a public or local build these return "" or 0 - no LBU values ship by default.
-    //config.json always wins over these if it already exists - first-run defaults only.
     //######################################
     private static string CiString(string key) =>
         AppContext.GetData(key) as string is { Length: > 0 } v ? v : "";
@@ -20,8 +17,24 @@ public class AppConfig
     private static int CiInt(string key) =>
         int.TryParse(AppContext.GetData(key) as string, out var v) ? v : 0;
 
+    //######################################
+    //Config Server - flavours, defaults, scripts
+    //Platform: "github" or "gitlab"
+    //######################################
+    [JsonPropertyName("cfg_platform")]
+    public string CfgPlatform { get; set; } = CiString("PandaTools.CfgPlatform") is { Length: > 0 } v ? v : "gitlab";
+
     [JsonPropertyName("url_server")]
     public string UrlServer { get; set; } = CiString("PandaTools.GitLabUrl");
+
+    [JsonPropertyName("cfg_repo_owner")]
+    public string CfgRepoOwner { get; set; } = CiString("PandaTools.CfgRepoOwner");
+
+    [JsonPropertyName("cfg_repo_name")]
+    public string CfgRepoName { get; set; } = CiString("PandaTools.CfgRepoName");
+
+    [JsonPropertyName("cfg_public")]
+    public bool CfgPublic { get; set; } = false;
 
     [JsonPropertyName("flavour")]
     public string Flavour { get; set; } = "Default";
@@ -56,29 +69,40 @@ public class AppConfig
     [JsonPropertyName("flavour_poll_seconds")]
     public int FlavourPollSeconds { get; set; } = 300;
 
-    //######################################
-    //Defaults repo path
-    //Path to defaults.json inside the pandatools-config repo.
-    //Polled on the same cycle as flavours and smart-merged into config.
-    //Set to "" to disable org defaults syncing entirely.
-    //######################################
     [JsonPropertyName("defaults_repo_path")]
     public string DefaultsRepoPath { get; set; } = "defaults/defaults.json";
 
     //######################################
-    //App update server - can differ from the config/flavour server
-    //e.g. app hosted on gitlab.com while config lives on internal GitLab
-    //Defaults to gitlab.com for public open source builds.
-    //If blank, falls back to url_server.
+    //App Updates - installer releases
+    //Platform: "github" or "gitlab"
     //######################################
+    [JsonPropertyName("app_platform")]
+    public string AppPlatform { get; set; } = CiString("PandaTools.AppPlatform") is { Length: > 0 } v ? v : "github";
+
     [JsonPropertyName("app_url_server")]
-    public string AppUrlServer { get; set; } = "https://gitlab.com";
+    public string AppUrlServer { get; set; } = CiString("PandaTools.AppUrlServer") is { Length: > 0 } v ? v : "https://github.com";
+
+    [JsonPropertyName("app_repo_owner")]
+    public string AppRepoOwner { get; set; } = CiString("PandaTools.GitHubRepoOwner");
+
+    [JsonPropertyName("app_repo_name")]
+    public string AppRepoName { get; set; } = CiString("PandaTools.GitHubRepoName");
+
+    [JsonPropertyName("app_public")]
+    public bool AppPublic { get; set; } = true;
 
     [JsonPropertyName("app_project_id")]
     public int AppProjectId { get; set; } = CiInt("PandaTools.GitLabProjectId");
 
     [JsonPropertyName("app_repo_path")]
     public string AppRepoPath { get; set; } = CiString("PandaTools.GitLabRepoPath");
+
+    //######################################
+    //App token - used when app server differs from config server
+    //and app repo is private. If same server as config, TokenEncrypted is reused.
+    //######################################
+    [JsonPropertyName("app_token_encrypted")]
+    public string AppTokenEncrypted { get; set; } = "";
 
     [JsonPropertyName("token_expiry_warn_days")]
     public int TokenExpiryWarnDays { get; set; } = 14;
@@ -98,26 +122,28 @@ public class AppConfig
     [JsonPropertyName("runas_profiles")]
     public List<RunAsProfile> RunAsProfiles { get; set; } = new()
     {
-        new() { Name = "Admin Profile", Username = "", Password = "" }
+        new() { Name = "Admin Profile", Username = "" }
     };
 
-    //######################################
-    //Global Universal LAPS Configuration
-    //######################################
     [JsonPropertyName("laps")]
     public LapsConfig Laps { get; set; } = new();
 
-    //######################################
-    //PandaShell Bookmarks
-    //######################################
     [JsonPropertyName("pandashell_bookmarks")]
     public List<PandaShellBookmark> PandaShellBookmarks { get; set; } = new();
 
-    //######################################
-    //PandaPassGen Configuration
-    //######################################
     [JsonPropertyName("pandapassgen")]
     public PandaPassGenConfig PandaPassGen { get; set; } = new();
+
+    //######################################
+    //Computed helpers used across the app
+    //######################################
+    public bool CfgIsGitHub => CfgPlatform.Equals("github", StringComparison.OrdinalIgnoreCase);
+    public bool AppIsGitHub => AppPlatform.Equals("github", StringComparison.OrdinalIgnoreCase);
+
+    //True when app server matches config server - app reuses config token, no second token needed
+    public bool AppSameAsConfig =>
+        !string.IsNullOrWhiteSpace(AppUrlServer) &&
+        AppUrlServer.TrimEnd('/').Equals(UrlServer.TrimEnd('/'), StringComparison.OrdinalIgnoreCase);
 }
 
 public class PandaPassGenConfig
@@ -146,8 +172,10 @@ public class RunAsProfile
     [JsonPropertyName("username")]
     public string Username { get; set; } = "";
 
-    [JsonIgnore]
-    public string Password { get; set; } = "";
+    //######################################
+    //Password is NEVER stored as a plain string.
+    //All operations go through SecureString or DPAPI bytes directly.
+    //######################################
 
     [JsonPropertyName("password_encrypted")]
     public string PasswordEncrypted { get; set; } = "";
@@ -155,46 +183,91 @@ public class RunAsProfile
     [JsonPropertyName("password")]
     public string LegacyPassword { get; set; } = "";
 
-    public void DecryptPassword()
+    //######################################
+    //Returns true if a saved password is available (encrypted or legacy)
+    //######################################
+    [JsonIgnore]
+    public bool HasSavedPassword =>
+        !string.IsNullOrEmpty(PasswordEncrypted) || !string.IsNullOrEmpty(LegacyPassword);
+
+    //######################################
+    //Decrypt directly to SecureString - plain text never touches a string variable
+    //Returns null if no password is saved or decryption fails
+    //######################################
+    public System.Security.SecureString? DecryptToSecureString()
     {
-        if (!string.IsNullOrEmpty(PasswordEncrypted))
+        byte[]? plain = null;
+        try
         {
-            try
+            if (!string.IsNullOrEmpty(PasswordEncrypted))
             {
                 var cipher = Convert.FromBase64String(PasswordEncrypted);
-                var plain  = ProtectedData.Unprotect(cipher, null, DataProtectionScope.CurrentUser);
-                Password   = Encoding.UTF8.GetString(plain);
+                plain = ProtectedData.Unprotect(cipher, null, DataProtectionScope.CurrentUser);
             }
-            catch { Password = ""; }
+            else if (!string.IsNullOrEmpty(LegacyPassword))
+            {
+                // Legacy plain-text migration path - encrypt and save on next Save()
+                plain = Encoding.UTF8.GetBytes(LegacyPassword);
+            }
+            else return null;
+
+            var secure = new System.Security.SecureString();
+            // Decode UTF8 bytes to chars and append directly - never creates a string
+            var chars = Encoding.UTF8.GetChars(plain);
+            try   { foreach (var c in chars) secure.AppendChar(c); }
+            finally { Array.Clear(chars, 0, chars.Length); }  // zero char array immediately
+            secure.MakeReadOnly();
+            return secure;
         }
-        else if (!string.IsNullOrEmpty(LegacyPassword))
+        catch { return null; }
+        finally
         {
-            Password = LegacyPassword;
+            // Zero the plaintext byte array before GC can see it
+            if (plain != null) Array.Clear(plain, 0, plain.Length);
         }
     }
 
-    public void EncryptPassword()
+    //######################################
+    //Encrypt from SecureString - SecureString → DPAPI bytes, no plain string created
+    //######################################
+    public void EncryptFromSecureString(System.Security.SecureString secure)
     {
         LegacyPassword = "";
 
-        if (string.IsNullOrEmpty(Password))
-        {
-            PasswordEncrypted = "";
-            return;
-        }
+        if (secure == null || secure.Length == 0) { PasswordEncrypted = ""; return; }
 
-        var plain  = Encoding.UTF8.GetBytes(Password);
-        var cipher = ProtectedData.Protect(plain, null, DataProtectionScope.CurrentUser);
-        PasswordEncrypted = Convert.ToBase64String(cipher);
+        var ptr   = System.Runtime.InteropServices.Marshal.SecureStringToGlobalAllocUnicode(secure);
+        byte[]? plain = null;
+        try
+        {
+            // Convert SecureString → UTF8 bytes without ever creating a managed string
+            plain = Encoding.UTF8.GetBytes(
+                System.Runtime.InteropServices.Marshal.PtrToStringUni(ptr)!);
+            var cipher    = ProtectedData.Protect(plain, null, DataProtectionScope.CurrentUser);
+            PasswordEncrypted = Convert.ToBase64String(cipher);
+        }
+        finally
+        {
+            System.Runtime.InteropServices.Marshal.ZeroFreeGlobalAllocUnicode(ptr);
+            if (plain != null) Array.Clear(plain, 0, plain.Length);
+        }
+    }
+
+    //######################################
+    //Called by ConfigLoader.Save() to migrate legacy plain-text passwords
+    //and ensure PasswordEncrypted is up to date
+    //######################################
+    public void MigrateAndEncrypt()
+    {
+        LegacyPassword = "";
+        // If we already have DPAPI-encrypted data, nothing to do
+        if (!string.IsNullOrEmpty(PasswordEncrypted)) return;
+        // PasswordEncrypted is empty - profile has no saved password, leave blank
     }
 
     public override string ToString() => Name;
 }
 
-//######################################
-//Org defaults model - matches defaults/defaults.json in pandatools-config repo
-//Only fields driven by org policy are present here.
-//######################################
 public class OrgDefaults
 {
     [JsonPropertyName("version")]
@@ -210,7 +283,6 @@ public class OrgDefaults
     public List<OrgRunAsProfile>? RunAsProfiles { get; set; }
 }
 
-//Slim RunAs model for defaults - only name and username, no password fields
 public class OrgRunAsProfile
 {
     [JsonPropertyName("name")]
@@ -241,125 +313,68 @@ public class FlavourConfig
     public bool ShowPandaLaps { get; set; } = false;
 }
 
-//######################################
-//Decorated Models for Zero-Maintenance UI
-//######################################
-
 public class FlavourSection
 {
-    [Category("Grouping")]
-    [DisplayName("Section Name")]
-    [Description("The name of the folder in the menu.")]
-    [JsonPropertyName("section")]
+    [Category("Grouping")][DisplayName("Section Name")][JsonPropertyName("section")]
     public string Section { get; set; } = "";
 
-    [Category("Grouping")]
-    [DisplayName("Folder Icon")]
-    [Description("An optional emoji or icon for the folder.")]
-    [JsonPropertyName("icon")]
+    [Category("Grouping")][DisplayName("Folder Icon")][JsonPropertyName("icon")]
     public string Icon { get; set; } = "";
 
-    [Browsable(false)]
-    [JsonPropertyName("items")]
+    [Browsable(false)][JsonPropertyName("items")]
     public List<FlavourItem> Items { get; set; } = new();
 }
 
 public class FlavourItem
 {
-    [Category("1. Identity")]
-    [DisplayName("Menu Label")]
-    [Description("The text displayed in the menu.")]
-    [JsonPropertyName("label")]
+    [Category("1. Identity")][DisplayName("Menu Label")][JsonPropertyName("label")]
     public string Label { get; set; } = "New Item";
 
-    [Category("2. Action")]
-    [DisplayName("Execution Type")]
-    [Description("Select the type of action this item performs from the dropdown.")]
-    [TypeConverter(typeof(ActionTypeConverter))]
-    [JsonPropertyName("type")]
+    [Category("2. Action")][DisplayName("Execution Type")][TypeConverter(typeof(ActionTypeConverter))][JsonPropertyName("type")]
     public string Type { get; set; } = "url";
 
-    [Category("2. Action")]
-    [DisplayName("Target / Value")]
-    [Description("The URL, executable path, or command to run.")]
-    [JsonPropertyName("value")]
+    [Category("2. Action")][DisplayName("Target / Value")][JsonPropertyName("value")]
     public string Value { get; set; } = "";
 
-    [Category("2. Action")]
-    [DisplayName("Multiple Targets")]
-    [Description("Use this instead of 'Value' to launch multiple URLs at once.")]
-    [JsonPropertyName("values")]
+    [Category("2. Action")][DisplayName("Multiple Targets")][JsonPropertyName("values")]
     public List<string> Values { get; set; } = new();
 
-    [Category("3. Modifiers")]
-    [DisplayName("Arguments")]
-    [Description("Extra command-line arguments for 'app' or 'exe' types.")]
-    [JsonPropertyName("arguments")]
+    [Category("3. Modifiers")][DisplayName("Arguments")][JsonPropertyName("arguments")]
     public string Arguments { get; set; } = "";
 
-    [Category("3. Modifiers")]
-    [DisplayName("RunAs Profile")]
-    [Description("Select a saved profile to automatically run this item as another user.")]
-    [TypeConverter(typeof(RunAsProfileConverter))]
-    [JsonPropertyName("runas_profile")]
+    [Category("3. Modifiers")][DisplayName("RunAs Profile")][TypeConverter(typeof(RunAsProfileConverter))][JsonPropertyName("runas_profile")]
     public string RunAsProfile { get; set; } = "";
 
-    [Category("3. Modifiers")]
-    [DisplayName("Require Admin")]
-    [Description("If true, requests UAC elevation before launching.")]
-    [JsonPropertyName("admin")]
+    [Category("3. Modifiers")][DisplayName("Require Admin")][JsonPropertyName("admin")]
     public bool Admin { get; set; } = false;
 
-    [Category("4. GitLab Scripts")]
-    [DisplayName("Project ID")]
-    [Description("The GitLab Project ID containing the script.")]
-    [JsonPropertyName("projectId")]
+    [Category("4. GitLab Scripts")][DisplayName("Project ID")][JsonPropertyName("projectId")]
     public int ProjectId { get; set; } = 0;
 
-    [Category("4. GitLab Scripts")]
-    [DisplayName("File Path")]
-    [Description("The exact path to the script in the repository.")]
-    [JsonPropertyName("filePath")]
+    [Category("4. GitLab Scripts")][DisplayName("File Path")][JsonPropertyName("filePath")]
     public string FilePath { get; set; } = "";
 
-    [Category("4. GitLab Scripts")]
-    [DisplayName("Branch")]
-    [Description("The repository branch to pull the script from.")]
-    [JsonPropertyName("branch")]
+    [Category("4. GitLab Scripts")][DisplayName("Branch")][JsonPropertyName("branch")]
     public string Branch { get; set; } = "main";
 }
-
-//######################################
-//DropDown Menu Converters for the UI
-//######################################
 
 public class ActionTypeConverter : StringConverter
 {
     public override bool GetStandardValuesSupported(ITypeDescriptorContext? context) => true;
     public override bool GetStandardValuesExclusive(ITypeDescriptorContext? context) => true;
-
-    public override StandardValuesCollection GetStandardValues(ITypeDescriptorContext? context)
-    {
-        return new StandardValuesCollection(new[]
-        {
-            "url", "incognito", "app", "explorer", "runas",
-            "powershell", "script", "pandashell", "pandapassgen"
-        });
-    }
+    public override StandardValuesCollection GetStandardValues(ITypeDescriptorContext? context) =>
+        new(new[] { "url", "incognito", "app", "explorer", "runas", "powershell", "script", "pandashell", "pandapassgen" });
 }
 
 public class RunAsProfileConverter : StringConverter
 {
     public override bool GetStandardValuesSupported(ITypeDescriptorContext? context) => true;
     public override bool GetStandardValuesExclusive(ITypeDescriptorContext? context) => false;
-
     public override StandardValuesCollection GetStandardValues(ITypeDescriptorContext? context)
     {
         var profiles = new List<string> { "" };
-
         if (ConfigLoader.AppConfig?.RunAsProfiles != null)
             profiles.AddRange(ConfigLoader.AppConfig.RunAsProfiles.Select(p => p.Name));
-
-        return new StandardValuesCollection(profiles);
+        return new(profiles);
     }
 }

@@ -327,8 +327,30 @@ public class PandaShellWindow : Form
         RunAsProfile? queryProfile = null; var qs = queryCombo?.SelectedItem?.ToString() ?? "";
         
         if (qs == "Current User") { queryProfile = null; }
-        else if (qs == "Custom…") { var u = Ask("Custom Account", "Enter DOMAIN\\username for LAPS query:"); if (string.IsNullOrWhiteSpace(u)) return; var (ok, pwd) = PwdPrompt(u, "Password for LAPS query account:"); if (!ok) return; queryProfile = new RunAsProfile { Username = u, Password = pwd }; }
-        else if (!string.IsNullOrWhiteSpace(qs)) { queryProfile = ConfigLoader.AppConfig.RunAsProfiles.FirstOrDefault(p => p.Name.Equals(qs, StringComparison.OrdinalIgnoreCase)); if (queryProfile != null && string.IsNullOrEmpty(queryProfile.Password)) { var (ok, pwd) = PwdPrompt(queryProfile.Username, $"Password for \"{queryProfile.Name}\":"); if (!ok) return; queryProfile = new RunAsProfile { Name = queryProfile.Name, Username = queryProfile.Username, Password = pwd }; } }
+        else if (qs == "Custom…")
+        {
+            var u = Ask("Custom Account", "Enter DOMAIN\\username for LAPS query:");
+            if (string.IsNullOrWhiteSpace(u)) return;
+            var (ok, secure) = PwdPrompt(u, "Password for LAPS query account:");
+            if (!ok || secure == null) return;
+            var temp = new RunAsProfile { Username = u };
+            temp.EncryptFromSecureString(secure);
+            secure.Dispose();
+            queryProfile = temp;
+        }
+        else if (!string.IsNullOrWhiteSpace(qs))
+        {
+            queryProfile = ConfigLoader.AppConfig.RunAsProfiles.FirstOrDefault(p => p.Name.Equals(qs, StringComparison.OrdinalIgnoreCase));
+            if (queryProfile != null && !queryProfile.HasSavedPassword)
+            {
+                var (ok, secure) = PwdPrompt(queryProfile.Username, $"Password for \"{queryProfile.Name}\":");
+                if (!ok || secure == null) return;
+                var temp = new RunAsProfile { Name = queryProfile.Name, Username = queryProfile.Username };
+                temp.EncryptFromSecureString(secure);
+                secure.Dispose();
+                queryProfile = temp;
+            }
+        }
         
         St("⏳ Fetching LAPS password...");
         var pw = await LapsClient.GetLapsPasswordAsync(host, LapsConfig.Load(), queryProfile);
@@ -337,7 +359,7 @@ public class PandaShellWindow : Form
         fetchedLapsPassword = pw; 
         if (lapsPassBox != null) lapsPassBox.Text = pw;
         if (copyLapsBtn != null) copyLapsBtn.Enabled = true; 
-        St("✅ LAPS fetched — click Connect.");
+        St("✅ LAPS fetched - click Connect.");
     }
 
     private void StartConnect()
@@ -368,10 +390,17 @@ public class PandaShellWindow : Form
         else if (mode == "runas")
         {
             var profile = ConfigLoader.AppConfig.RunAsProfiles.FirstOrDefault(p => string.Equals(p.Name, runAs, StringComparison.OrdinalIgnoreCase));
-            if (profile != null && !string.IsNullOrEmpty(profile.Password))
+            if (profile != null && profile.HasSavedPassword)
             {
-                Clipboard.SetText(profile.Password);
-                hasCopiedPassword = true;
+                // Decrypt to SecureString, extract to clipboard, then dispose immediately
+                using var ss = profile.DecryptToSecureString();
+                if (ss != null)
+                {
+                    var ptr = System.Runtime.InteropServices.Marshal.SecureStringToGlobalAllocUnicode(ss);
+                    try { Clipboard.SetText(System.Runtime.InteropServices.Marshal.PtrToStringUni(ptr) ?? ""); }
+                    finally { System.Runtime.InteropServices.Marshal.ZeroFreeGlobalAllocUnicode(ptr); }
+                    hasCopiedPassword = true;
+                }
             }
         }
 
@@ -507,7 +536,7 @@ Remove-Item -Path $MyInvocation.MyCommand.Path -ErrorAction SilentlyContinue
     private static Button  MkBtn(string t, int x, int y, int w)   => new() { Text = t, Left = x, Top = y,     Width = w, Height = 26, Font = new Font("Segoe UI", 9f) };
     private void St(string msg) { if (statusLabel == null) return; statusLabel.Text = msg; statusLabel.ForeColor = msg.StartsWith("❌") ? Color.DarkRed : msg.StartsWith("🚀") || msg.StartsWith("✅") ? Color.DarkGreen : Color.DimGray; }
 
-    private static (bool ok, string pwd) PwdPrompt(string username, string message)
+    private static (bool ok, System.Security.SecureString? pwd) PwdPrompt(string username, string message)
     {
         const int pad = 16, fw = 400, iw = fw - pad * 2 - 16, tw = 32, bw = 80, bg = 8;
         const int mt = 16, mh = 40, ut = mt + mh + 8, pt = ut + 26, bnt = pt + 34, bh = 28, fh = bnt + bh + 48;
@@ -523,7 +552,13 @@ Remove-Item -Path $MyInvocation.MyCommand.Path -ErrorAction SilentlyContinue
         var ok = new Button { Text = "OK", Left = bol, Top = bnt, Width = bw, Height = bh, DialogResult = DialogResult.OK, Font = new Font("Segoe UI", 9f) };
         var can = new Button { Text = "Cancel", Left = bcl, Top = bnt, Width = bw, Height = bh, DialogResult = DialogResult.Cancel, Font = new Font("Segoe UI", 9f) };
         frm.Controls.AddRange(new Control[] { ok, can }); frm.AcceptButton = ok; frm.CancelButton = can; frm.Shown += (_, _) => txt.Focus();
-        var r = frm.ShowDialog(); return (r == DialogResult.OK, txt.Text);
+        var r = frm.ShowDialog();
+        if (r != DialogResult.OK) return (false, null);
+        var secure = new System.Security.SecureString();
+        foreach (var c in txt.Text) secure.AppendChar(c);
+        secure.MakeReadOnly();
+        txt.Clear();
+        return (true, secure);
     }
 
     private static string? Ask(string title, string prompt, string def = "")

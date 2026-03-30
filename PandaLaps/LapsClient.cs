@@ -41,17 +41,13 @@ if($r){{ $r.Password }}";
                 CreateNoWindow         = true
             };
 
-            if (queryAs != null && !string.IsNullOrWhiteSpace(queryAs.Password))
+            if (queryAs != null && queryAs.HasSavedPassword)
             {
                 var (domain, user) = SplitUser(queryAs.Username);
                 psi.UserName        = user;
                 psi.Domain          = domain;
                 psi.LoadUserProfile = true;
-
-                var ss = new SecureString();
-                foreach (var c in queryAs.Password) ss.AppendChar(c);
-                ss.MakeReadOnly();
-                psi.Password = ss;
+                psi.Password        = queryAs.DecryptToSecureString();
             }
 
             using var proc = new Process { StartInfo = psi };
@@ -112,17 +108,13 @@ if($p){{if($p.ExpirationTimestamp){{$p.ExpirationTimestamp.ToString('g')}}elseif
                     CreateNoWindow         = true
                 };
 
-                if (queryAs != null && !string.IsNullOrWhiteSpace(queryAs.Password))
+                if (queryAs != null && queryAs.HasSavedPassword)
                 {
                     var (domain, user) = SplitUser(queryAs.Username);
                     psi.UserName        = user;
                     psi.Domain          = domain;
                     psi.LoadUserProfile = true;
-
-                    var ss = new SecureString();
-                    foreach (var c in queryAs.Password) ss.AppendChar(c);
-                    ss.MakeReadOnly();
-                    psi.Password = ss;
+                    psi.Password        = queryAs.DecryptToSecureString();
                 }
 
                 using var proc = new Process { StartInfo = psi };
@@ -176,17 +168,13 @@ Set-ADComputer -Identity '{EscPs(computerName)}' {dcParam} -Replace @{{ 'ms-Mcs-
                     CreateNoWindow         = true
                 };
 
-                if (queryAs != null && !string.IsNullOrWhiteSpace(queryAs.Password))
+                if (queryAs != null && queryAs.HasSavedPassword)
                 {
                     var (domain, user) = SplitUser(queryAs.Username);
                     psi.UserName        = user;
                     psi.Domain          = domain;
                     psi.LoadUserProfile = true;
-
-                    var ss = new SecureString();
-                    foreach (var c in queryAs.Password) ss.AppendChar(c);
-                    ss.MakeReadOnly();
-                    psi.Password = ss;
+                    psi.Password        = queryAs.DecryptToSecureString();
                 }
 
                 using var proc = new Process { StartInfo = psi };

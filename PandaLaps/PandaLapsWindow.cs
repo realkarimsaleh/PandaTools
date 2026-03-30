@@ -290,7 +290,18 @@ public class PandaLapsWindow : Form
         var runAsName = _accountCombo?.SelectedItem?.ToString();
         var profile = ConfigLoader.AppConfig.RunAsProfiles.FirstOrDefault(p => p.Name == runAsName);
         if (profile == null) { MessageBox.Show("Please select a RunAs profile.", "Error"); return null; }
-        if (string.IsNullOrEmpty(profile.Password)) { var (ok, pwd) = CredentialPrompt.Show(profile.Username, $"Please enter the password for \"{profile.Name}\" to execute LAPS query:"); if (!ok) return null; return new RunAsProfile { Name = profile.Name, Username = profile.Username, Password = pwd }; }
+        //If no saved password, prompt - CredentialPrompt.LaunchWithRunAs handles this inline
+        //Return profile as-is; LapsClient.DecryptToSecureString handles decryption
+        if (!profile.HasSavedPassword)
+        {
+            var (ok, secure) = CredentialPrompt.Show(profile.Username, $"Please enter the password for \"{profile.Name}\" to execute LAPS query:");
+            if (!ok || secure == null) return null;
+            //Create a temporary profile with the entered password encrypted
+            var temp = new RunAsProfile { Name = profile.Name, Username = profile.Username };
+            temp.EncryptFromSecureString(secure);
+            secure.Dispose();
+            return temp;
+        }
         return profile;
     }
 

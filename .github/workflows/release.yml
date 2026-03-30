@@ -1,0 +1,116 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  APP_VERSION: "3.0.0"
+
+jobs:
+  build-and-release:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Derive version from tag
+        id: version
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $v   = if ($tag -and $tag -ne "") { $tag.TrimStart("v") } else { "${{ env.APP_VERSION }}" }
+          echo "VERSION=$v" >> $env:GITHUB_OUTPUT
+          Write-Host "Building version: $v"
+
+      - name: Build main app
+        shell: pwsh
+        run: |
+          $env:PATH = "C:\Program Files\dotnet;$env:PATH"
+          dotnet restore PandaTools.csproj
+          dotnet publish PandaTools.csproj `
+            --configuration Release `
+            --runtime win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:DebugType=none `
+            -p:DebugSymbols=false `
+            -p:Version=${{ steps.version.outputs.VERSION }} `
+            -p:CfgPlatform="github" `
+            -p:CfgRepoOwner="${{ github.repository_owner }}" `
+            -p:CfgRepoName="pandatools-config" `
+            -p:AppPlatform="github" `
+            -p:AppUrlServer="https://github.com" `
+            -p:GitHubRepoOwner="${{ github.repository_owner }}" `
+            -p:GitHubRepoName="${{ github.event.repository.name }}" `
+            --output ./payload_staging
+
+      - name: Bundle payload
+        shell: pwsh
+        run: |
+          if (Test-Path "PandaTools.Setup/Payload") { Remove-Item "PandaTools.Setup/Payload" -Recurse -Force }
+          New-Item -ItemType Directory -Path "PandaTools.Setup/Payload" | Out-Null
+          Compress-Archive -Path "./payload_staging/*" -DestinationPath "./PandaTools.Setup/Payload/payload.zip" -Force
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $env:PATH = "C:\Program Files\dotnet;$env:PATH"
+          dotnet restore PandaTools.Setup/PandaTools.Setup.csproj
+          dotnet publish PandaTools.Setup/PandaTools.Setup.csproj `
+            --configuration Release `
+            --runtime win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:DebugType=none `
+            -p:DebugSymbols=false `
+            -p:Version=${{ steps.version.outputs.VERSION }} `
+            --output ./installer_out
+          $exeName = "PandaToolsSetup-${{ github.ref_name }}.exe"
+          Move-Item -Path "./installer_out/PandaToolsSetup.exe" -Destination "./$exeName" -Force
+          Write-Host "Installer: $exeName ($((Get-Item $exeName).Length) bytes)"
+
+      - name: Parse changelog
+        id: changelog
+        shell: pwsh
+        run: |
+          $lines   = Get-Content CHANGELOG.md
+          $capture = $false
+          $notes   = @()
+          foreach ($line in $lines) {
+            if ($line -match '^## \[') {
+              if ($capture) { break }
+              $capture = $true
+            }
+            if ($capture) { $notes += $line }
+          }
+          $body = ($notes -join "`n").Trim()
+          if (-not $body) { $body = "Release ${{ github.ref_name }}" }
+          $body | Out-File -FilePath release_notes.txt -Encoding utf8
+
+      - name: Publish GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $exeName = "PandaToolsSetup-${{ github.ref_name }}.exe"
+          $notes   = Get-Content release_notes.txt -Raw
+
+          # Delete existing release on this tag (handles reruns)
+          $existing = gh release view "${{ github.ref_name }}" --json id 2>$null
+          if ($existing) {
+            gh release delete "${{ github.ref_name }}" --yes --cleanup-tag
+            Write-Host "Deleted existing release ${{ github.ref_name }}"
+          }
+
+          # Create release and upload asset in one step
+          gh release create "${{ github.ref_name }}" `
+            --title "PandaTools ${{ github.ref_name }}" `
+            --notes $notes `
+            $exeName
+
+          Write-Host "GitHub release published: ${{ github.ref_name }}"

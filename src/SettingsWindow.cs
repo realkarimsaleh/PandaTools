@@ -33,15 +33,23 @@ public class SettingsWindow : Form
     //######################################
     //Field refs
     //######################################
+    //Config Server fields
     private TextBox?       _urlBox;
     private TextBox?       _tokenPlainBox;
+    private TextBox?       _cfgRepoOwnerBox;
+    private TextBox?       _cfgRepoNameBox;
+    //App Updates fields
+    private TextBox?       _appUrlBox;
+    private TextBox?       _appRepoOwnerBox;
+    private TextBox?       _appRepoNameBox;
+    private TextBox?       _appRepoPathBox;
+    private TextBox?       _appTokenPlainBox;
+    //Browser / RunAs fields
     private TextBox?       _browserPathBox;
     private TextBox?       _urlBrowserPathBox;
     private TextBox?       _runasUserBox;
     private TextBox?       _runasPassBox;
     private TextBox?       _runasNameBox;
-    private TextBox?       _appRepoPathBox;
-    private TextBox?       _appUrlBox;
     private ComboBox?      _flavourCombo;
     private ComboBox?      _browserCombo;
     private ComboBox?      _urlBrowserCombo;
@@ -55,6 +63,17 @@ public class SettingsWindow : Form
     private CheckBox?      _onlySubscribedCheck;
     private CheckBox?      _chkAppUrlSame;
     private Label?         _statusLabel;
+    //Platform / visibility radios
+    private RadioButton?   _radCfgGitHub,  _radCfgGitLab;
+    private RadioButton?   _radCfgPublic,  _radCfgPrivate;
+    private RadioButton?   _radAppGitHub,  _radAppGitLab;
+    private RadioButton?   _radAppPublic,  _radAppPrivate;
+    // Conditional panels
+    private Panel?         _pnlCfgOwnerRepo, _pnlCfgProjectId;
+    private Panel?         _pnlCfgToken;
+    private Button?        _btnCfgExpiry;
+    private Panel?         _pnlAppOwnerRepo, _pnlAppProjectId;
+    private Panel?         _pnlAppToken,     _pnlAppReuseHint;
 
     private List<RunAsProfile> _runasProfiles       = new();
     private int                _selectedProfileIndex = -1;
@@ -64,7 +83,7 @@ public class SettingsWindow : Form
     //######################################
     private const int SideW   = 158;   // sidebar width
     private const int FormW   = 760;
-    private const int FormH   = 520;
+    private const int FormH   = 640;
     private const int HeadH   = 52;
     private const int FootH   = 62;
     private const int ContentW = FormW - SideW;
@@ -96,7 +115,7 @@ public class SettingsWindow : Form
     {
         var cfg = ConfigLoader.AppConfig;
         _runasProfiles = cfg.RunAsProfiles
-            .Select(p => new RunAsProfile { Name = p.Name, Username = p.Username, Password = p.Password })
+            .Select(p => new RunAsProfile { Name = p.Name, Username = p.Username, PasswordEncrypted = p.PasswordEncrypted, LegacyPassword = p.LegacyPassword })
             .ToList();
 
         var appVersion     = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.0.0";
@@ -293,82 +312,173 @@ public class SettingsWindow : Form
 
     //######################################
     //Section: Connection
+    //Fixed-position layout so toggling platform radios never causes gaps.
+    //All conditional panels sit at the same Top - only one is visible at a time.
     //######################################
     private Panel BuildSectionConnection(AppConfig cfg)
     {
         var p = MakeSection();
+        const int tkBtnW = 110; const int tkGap = 4;
+        const int RowH   = 32;  // standard row height
+        const int PnlH   = 68;  // fixed height for all swappable panels (owner+repo or projectid)
+        int tkBoxW       = FldW - (tkBtnW * 2) - (tkGap * 2);
+        int appTkBoxW    = FldW - (tkBtnW + tkGap);
+
+        //######################################
+        //Config Server - header with inline subtitle
+        //######################################
         int y = Pad;
 
-        AddSectionHeader(p, "🔗  Connection", ref y);
-
-        AddField(p, "Config Server:", ref y);
-        _urlBox = MakeTxt(cfg.UrlServer, FldX, y - 26, FldW);
-        p.Controls.Add(_urlBox);
-
-        AddField(p, "Project ID:", ref y);
-        _projectIdBox = new NumericUpDown
+        //Title + subtitle on same line
+        p.Controls.Add(new Label
         {
-            Minimum = 0, Maximum = 9999999999,
-            Value   = Math.Max(0, cfg.FlavourProjectId),
-            Left    = FldX, Top = y - 26, Width = 130,
-            Font    = new Font("Segoe UI", 9f)
-        };
-        p.Controls.Add(_projectIdBox);
-        p.Controls.Add(MakeHint("GitLab project ID used for flavour polling", FldX + 136, y - 23));
+            Text = "⚙️  Config Server", Left = Pad, Top = y,
+            Width = 180, Height = 24,
+            Font = new Font("Segoe UI", 11f, FontStyle.Bold),
+            ForeColor = Color.FromArgb(28, 28, 28)
+        });
+        p.Controls.Add(new Label
+        {
+            Text      = "Flavours · Defaults · Scripts",
+            Left      = Pad, Top = y + 4, Width = ContentW - Pad * 2, Height = 16,
+            ForeColor = Color.DimGray, Font = new Font("Segoe UI", 8f),
+            TextAlign = ContentAlignment.MiddleRight
+        });
+        y += 26;
+        p.Controls.Add(new Panel { Left = Pad, Top = y, Width = ContentW - Pad * 2, Height = 1, BackColor = Color.FromArgb(220, 220, 220) });
+        y += 10;
 
-        AddField(p, "New Token:", ref y);
-        const int tkBtnW = 110;
-        const int tkGap  = 4;
-        int       tkBoxW = FldW - (tkBtnW * 2) - (tkGap * 2);
+        //Platform - own panel so radios don't bleed into other groups
+        p.Controls.Add(MakeLbl("Platform:", Pad, y));
+        var pnlCfgPlat = new Panel { Left = FldX, Top = y, Width = 200, Height = 24, BackColor = Color.Transparent };
+        _radCfgGitHub = MakeRadio("GitHub", 0,  0, cfg.CfgIsGitHub);
+        _radCfgGitLab = MakeRadio("GitLab", 80, 0, !cfg.CfgIsGitHub);
+        _radCfgGitHub.CheckedChanged += (_, _) => { if (_radCfgGitHub.Checked) RefreshCfgVisibility(); };
+        _radCfgGitLab.CheckedChanged += (_, _) => { if (_radCfgGitLab.Checked) RefreshCfgVisibility(); };
+        pnlCfgPlat.Controls.AddRange(new Control[] { _radCfgGitHub, _radCfgGitLab });
+        p.Controls.Add(pnlCfgPlat);
+        y += RowH;
 
-        _tokenPlainBox                  = MakeTxt("", FldX, y - 26, tkBoxW, password: true);
-        _tokenPlainBox.PlaceholderText  = "Leave blank to keep current token";
-        p.Controls.Add(_tokenPlainBox);
+        //Server URL
+        p.Controls.Add(MakeLbl("Server URL:", Pad, y));
+        _urlBox = MakeTxt(cfg.UrlServer, FldX, y, FldW);
+        _urlBox.PlaceholderText = cfg.CfgIsGitHub ? "https://github.com" : "https://gitlab.example.com";
+        p.Controls.Add(_urlBox);
+        y += RowH;
 
-        var btnToken = MakeBtn("🔑 Update Token", FldX + tkBoxW + tkGap, y - 27, tkBtnW);
-        btnToken.BackColor = Color.FromArgb(0, 123, 255);
-        btnToken.ForeColor = Color.White;
-        btnToken.FlatStyle = FlatStyle.Flat;
-        btnToken.FlatAppearance.BorderSize = 0;
+        //Swappable row: Repo Owner+Name (GitHub) OR Project ID (GitLab) - SAME Top, SAME height
+        _pnlCfgOwnerRepo = new Panel { Left = 0, Top = y, Width = ContentW, Height = PnlH, Visible = cfg.CfgIsGitHub };
+        _pnlCfgOwnerRepo.Controls.Add(MakeLbl("Repo Owner:", Pad, 0));
+        _cfgRepoOwnerBox = MakeTxt(cfg.CfgRepoOwner, FldX, 0, FldW);
+        _cfgRepoOwnerBox.PlaceholderText = "e.g. realKarimSaleh";
+        _pnlCfgOwnerRepo.Controls.Add(_cfgRepoOwnerBox);
+        _pnlCfgOwnerRepo.Controls.Add(MakeLbl("Repo Name:", Pad, RowH));
+        _cfgRepoNameBox = MakeTxt(cfg.CfgRepoName, FldX, RowH, FldW);
+        _cfgRepoNameBox.PlaceholderText = "e.g. pandatools-config";
+        _pnlCfgOwnerRepo.Controls.Add(_cfgRepoNameBox);
+        p.Controls.Add(_pnlCfgOwnerRepo);
+
+        _pnlCfgProjectId = new Panel { Left = 0, Top = y, Width = ContentW, Height = PnlH, Visible = !cfg.CfgIsGitHub };
+        _pnlCfgProjectId.Controls.Add(MakeLbl("Project ID:", Pad, 0));
+        _projectIdBox = new NumericUpDown { Minimum = 0, Maximum = 999999999, Value = Math.Max(0, cfg.FlavourProjectId), Left = FldX, Top = 0, Width = 130, Font = new Font("Segoe UI", 9f) };
+        _pnlCfgProjectId.Controls.Add(_projectIdBox);
+        _pnlCfgProjectId.Controls.Add(new Label { Text = "Used for flavour and defaults polling", Left = FldX + 136, Top = 3, Width = 260, Height = 16, ForeColor = Color.DimGray, Font = new Font("Segoe UI", 7.5f) });
+        p.Controls.Add(_pnlCfgProjectId);
+        //always advance by fixed PnlH
+        y += PnlH;  
+
+        //Visibility - own panel
+        p.Controls.Add(MakeLbl("Visibility:", Pad, y));
+        var pnlCfgVis = new Panel { Left = FldX, Top = y, Width = 320, Height = 24, BackColor = Color.Transparent };
+        _radCfgPublic  = MakeRadio("Public",  0,  0, cfg.CfgPublic);
+        _radCfgPrivate = MakeRadio("Private", 80, 0, !cfg.CfgPublic);
+        var cfgVisHint = new Label { Text = "no token needed", Left = 168, Top = 2, Width = 140, Height = 20, ForeColor = Color.DimGray, Font = new Font("Segoe UI", 8f), TextAlign = ContentAlignment.MiddleLeft, Visible = cfg.CfgPublic };
+        _radCfgPublic.CheckedChanged  += (_, _) => { RefreshCfgTokenVisibility(); cfgVisHint.Visible = _radCfgPublic.Checked; };
+        _radCfgPrivate.CheckedChanged += (_, _) => RefreshCfgTokenVisibility();
+        pnlCfgVis.Controls.AddRange(new Control[] { _radCfgPublic, _radCfgPrivate, cfgVisHint });
+        p.Controls.Add(pnlCfgVis);
+        y += RowH;
+
+        //Token (always present, greyed when public)
+        _pnlCfgToken = new Panel { Left = 0, Top = y, Width = ContentW, Height = 44 };
+        _pnlCfgToken.Controls.Add(MakeLbl("Token:", Pad, 0));
+        _tokenPlainBox = MakeTxt("", FldX, 0, tkBoxW, password: true);
+        _tokenPlainBox.PlaceholderText = cfg.CfgIsGitHub ? "ghp_xxxxxxxxxxxx" : "glpat-xxxxxxxxxxxx";
+        _pnlCfgToken.Controls.Add(_tokenPlainBox);
+        var btnToken = MakeBtn("🔑 Update Token", FldX + tkBoxW + tkGap, -1, tkBtnW);
+        btnToken.BackColor = Color.FromArgb(0, 123, 255); btnToken.ForeColor = Color.White;
+        btnToken.FlatStyle = FlatStyle.Flat; btnToken.FlatAppearance.BorderSize = 0;
         btnToken.Click += (_, _) =>
         {
             var plain = _tokenPlainBox?.Text.Trim() ?? "";
             if (string.IsNullOrWhiteSpace(plain)) { Status("❌ Token field is empty"); return; }
             TokenManager.SaveToken(plain);
             if (_tokenPlainBox != null) _tokenPlainBox.Text = "";
-            Status("✅ Token encrypted and saved");
+            Status("✅ Config server token saved");
         };
-        p.Controls.Add(btnToken);
-
-        var btnExpiry = MakeBtn("🔍 Check Expiry", FldX + tkBoxW + tkGap + tkBtnW + tkGap, y - 27, tkBtnW);
-        btnExpiry.Click += async (_, _) =>
+        _pnlCfgToken.Controls.Add(btnToken);
+        _btnCfgExpiry = MakeBtn("🔍 Check Expiry", FldX + tkBoxW + tkGap + tkBtnW + tkGap, -1, tkBtnW);
+        _btnCfgExpiry.Visible = !cfg.CfgIsGitHub;
+        _btnCfgExpiry.Click += async (_, _) =>
         {
             Status("⏳ Checking token expiry...");
-            var result = await TokenExpiryChecker.GetExpiryInfoAsync();
-            Status(result);
+            Status(await TokenExpiryChecker.GetExpiryInfoAsync());
         };
-        p.Controls.Add(btnExpiry);
-        p.Controls.Add(MakeHint("💡 Token is encrypted with DPAPI (per-user, this machine only). Plain-text is never stored.", Pad, y - 4));
-        y += 22;
+        _pnlCfgToken.Controls.Add(_btnCfgExpiry);
+        _pnlCfgToken.Controls.Add(new Label { Text = "💡 Encrypted with DPAPI - plain-text is never stored", Left = FldX, Top = 26, Width = ContentW - FldX - Pad, Height = 16, ForeColor = Color.DimGray, Font = new Font("Segoe UI", 7.5f) });
+        p.Controls.Add(_pnlCfgToken);
+        y += 48;
 
         AddDivider(p, ref y);
 
-        //App Server URL
-        p.Controls.Add(MakeLbl("App Server URL:", Pad, y));
-        var sameServerConn = !string.IsNullOrWhiteSpace(cfg.AppUrlServer) &&
-            cfg.AppUrlServer.TrimEnd('/').Equals(cfg.UrlServer.TrimEnd('/'), StringComparison.OrdinalIgnoreCase);
-        _appUrlBox                 = MakeTxt(cfg.AppUrlServer, FldX, y, FldW - 180);
-        _appUrlBox.PlaceholderText = "https://gitlab.com";
-        _appUrlBox.ReadOnly        = sameServerConn;
-        _appUrlBox.BackColor       = sameServerConn ? Color.FromArgb(240, 240, 240) : Color.White;
+        //######################################
+        //App Updates - header with inline subtitle
+        //######################################
+        p.Controls.Add(new Label
+        {
+            Text = "⬆️  App Updates", Left = Pad, Top = y,
+            Width = 180, Height = 24,
+            Font = new Font("Segoe UI", 11f, FontStyle.Bold),
+            ForeColor = Color.FromArgb(28, 28, 28)
+        });
+        p.Controls.Add(new Label
+        {
+            Text      = "Installer releases",
+            Left      = Pad, Top = y + 4, Width = ContentW - Pad * 2, Height = 16,
+            ForeColor = Color.DimGray, Font = new Font("Segoe UI", 8f),
+            TextAlign = ContentAlignment.MiddleRight
+        });
+        y += 26;
+        p.Controls.Add(new Panel { Left = Pad, Top = y, Width = ContentW - Pad * 2, Height = 1, BackColor = Color.FromArgb(220, 220, 220) });
+        y += 10;
+
+        //Platform - own panel
+        p.Controls.Add(MakeLbl("Platform:", Pad, y));
+        var pnlAppPlat = new Panel { Left = FldX, Top = y, Width = 200, Height = 24, BackColor = Color.Transparent };
+        _radAppGitHub = MakeRadio("GitHub", 0,  0, cfg.AppIsGitHub);
+        _radAppGitLab = MakeRadio("GitLab", 80, 0, !cfg.AppIsGitHub);
+        _radAppGitHub.CheckedChanged += (_, _) => { if (_radAppGitHub.Checked) RefreshAppVisibility(); };
+        _radAppGitLab.CheckedChanged += (_, _) => { if (_radAppGitLab.Checked) RefreshAppVisibility(); };
+        pnlAppPlat.Controls.AddRange(new Control[] { _radAppGitHub, _radAppGitLab });
+        p.Controls.Add(pnlAppPlat);
+        y += RowH;
+
+        //Server URL + Same as Config
+        p.Controls.Add(MakeLbl("Server URL:", Pad, y));
+        _appUrlBox = MakeTxt(cfg.AppUrlServer, FldX, y, FldW - 180);
+        _appUrlBox.ReadOnly  = cfg.AppSameAsConfig;
+        _appUrlBox.BackColor = cfg.AppSameAsConfig ? Color.FromArgb(240, 240, 240) : Color.White;
         p.Controls.Add(_appUrlBox);
+        bool sameEnabled = cfg.AppPlatform.Equals(cfg.CfgPlatform, StringComparison.OrdinalIgnoreCase);
         _chkAppUrlSame = new CheckBox
         {
-            Text    = "Same as Config Server",
-            Checked = sameServerConn,
-            Left    = FldX + (FldW - 178), Top = y + 2,
-            Width   = 178, Height = 20,
-            Font    = new Font("Segoe UI", 8.5f)
+            Text      = "Same as Config Server",
+            Checked   = cfg.AppSameAsConfig,
+            Enabled   = sameEnabled,
+            Left      = FldX + (FldW - 178), Top = y + 2,
+            Width     = 178, Height = 20,
+            Font      = new Font("Segoe UI", 8.5f),
+            ForeColor = sameEnabled ? Color.FromArgb(30, 30, 30) : Color.DimGray
         };
         _chkAppUrlSame.CheckedChanged += (_, _) =>
         {
@@ -376,29 +486,161 @@ public class SettingsWindow : Form
             _appUrlBox!.ReadOnly  = isSame;
             _appUrlBox.BackColor  = isSame ? Color.FromArgb(240, 240, 240) : Color.White;
             if (isSame) _appUrlBox.Text = _urlBox?.Text.Trim() ?? "";
+            RefreshAppTokenVisibility();
         };
         p.Controls.Add(_chkAppUrlSame);
-        y += 32;
+        y += RowH;
 
-        p.Controls.Add(MakeLbl("App Project ID:", Pad, y));
-        _appProjectIdBox = new NumericUpDown
+        //Swappable: Repo Owner+Name (GitHub) OR Project ID + Repo Path (GitLab) - SAME Top
+        _pnlAppOwnerRepo = new Panel { Left = 0, Top = y, Width = ContentW, Height = PnlH, Visible = cfg.AppIsGitHub };
+        _pnlAppOwnerRepo.Controls.Add(MakeLbl("Repo Owner:", Pad, 0));
+        _appRepoOwnerBox = MakeTxt(cfg.AppRepoOwner, FldX, 0, FldW);
+        _appRepoOwnerBox.PlaceholderText = "e.g. realKarimSaleh";
+        _pnlAppOwnerRepo.Controls.Add(_appRepoOwnerBox);
+        _pnlAppOwnerRepo.Controls.Add(MakeLbl("Repo Name:", Pad, RowH));
+        _appRepoNameBox = MakeTxt(cfg.AppRepoName, FldX, RowH, FldW);
+        _appRepoNameBox.PlaceholderText = "e.g. PandaTools";
+        _pnlAppOwnerRepo.Controls.Add(_appRepoNameBox);
+        p.Controls.Add(_pnlAppOwnerRepo);
+
+        _pnlAppProjectId = new Panel { Left = 0, Top = y, Width = ContentW, Height = PnlH, Visible = !cfg.AppIsGitHub };
+        _pnlAppProjectId.Controls.Add(MakeLbl("Project ID:", Pad, 0));
+        _appProjectIdBox = new NumericUpDown { Minimum = 0, Maximum = 999999999, Value = Math.Max(0, cfg.AppProjectId), Left = FldX, Top = 0, Width = 130, Font = new Font("Segoe UI", 9f) };
+        _pnlAppProjectId.Controls.Add(_appProjectIdBox);
+        _pnlAppProjectId.Controls.Add(MakeLbl("Repo Path:", Pad, RowH));
+        _appRepoPathBox = MakeTxt(cfg.AppRepoPath, FldX, RowH, FldW);
+        _pnlAppProjectId.Controls.Add(_appRepoPathBox);
+        p.Controls.Add(_pnlAppProjectId);
+        //Always advance by fixed PnlH
+        y += PnlH;
+
+        //Visibility - own panel
+        p.Controls.Add(MakeLbl("Visibility:", Pad, y));
+        var pnlAppVis = new Panel { Left = FldX, Top = y, Width = 320, Height = 24, BackColor = Color.Transparent };
+        _radAppPublic  = MakeRadio("Public",  0,  0, cfg.AppPublic);
+        _radAppPrivate = MakeRadio("Private", 80, 0, !cfg.AppPublic);
+        var appVisHint = new Label { Text = "no token needed", Left = 168, Top = 2, Width = 140, Height = 20, ForeColor = Color.DimGray, Font = new Font("Segoe UI", 8f), TextAlign = ContentAlignment.MiddleLeft, Visible = cfg.AppPublic };
+        _radAppPublic.CheckedChanged  += (_, _) => { RefreshAppTokenVisibility(); appVisHint.Visible = _radAppPublic.Checked; };
+        _radAppPrivate.CheckedChanged += (_, _) => RefreshAppTokenVisibility();
+        pnlAppVis.Controls.AddRange(new Control[] { _radAppPublic, _radAppPrivate, appVisHint });
+        p.Controls.Add(pnlAppVis);
+        y += RowH;
+
+        //Token (always present, greyed when public or same-server)
+        _pnlAppToken = new Panel { Left = 0, Top = y, Width = ContentW, Height = 44 };
+        _pnlAppToken.Controls.Add(MakeLbl("App Token:", Pad, 0));
+        _appTokenPlainBox = MakeTxt("", FldX, 0, appTkBoxW, password: true);
+        _appTokenPlainBox.PlaceholderText = cfg.AppIsGitHub ? "ghp_xxxxxxxxxxxx" : "glpat-xxxxxxxxxxxx";
+        _pnlAppToken.Controls.Add(_appTokenPlainBox);
+        var btnAppToken = MakeBtn("🔑 Update Token", FldX + appTkBoxW + tkGap, -1, tkBtnW);
+        btnAppToken.BackColor = Color.FromArgb(0, 123, 255); btnAppToken.ForeColor = Color.White;
+        btnAppToken.FlatStyle = FlatStyle.Flat; btnAppToken.FlatAppearance.BorderSize = 0;
+        btnAppToken.Click += (_, _) =>
         {
-            Minimum = 0, Maximum = 9999999999,
-            Value   = Math.Max(0, cfg.AppProjectId),
-            Left    = FldX, Top = y, Width = 130,
-            Font    = new Font("Segoe UI", 9f)
+            var plain = _appTokenPlainBox?.Text.Trim() ?? "";
+            if (string.IsNullOrWhiteSpace(plain)) { Status("❌ Token field is empty"); return; }
+            TokenManager.SaveAppToken(plain);
+            if (_appTokenPlainBox != null) _appTokenPlainBox.Text = "";
+            Status("✅ App token saved");
         };
-        p.Controls.Add(_appProjectIdBox);
-        y += 32;
 
-        p.Controls.Add(MakeLbl("App Repo Path:", Pad, y));
-        _appRepoPathBox = MakeTxt(cfg.AppRepoPath, FldX, y, FldW);
-        p.Controls.Add(_appRepoPathBox);
-        y += 28;
-        p.Controls.Add(MakeHint("💡 App Server URL, Project ID and Repo Path control the update checker", Pad, y));
-        y += 14;
+        _pnlAppToken.Controls.Add(btnAppToken);
+        _pnlAppToken.Controls.Add(new Label { Text = "💡 Encrypted with DPAPI - plain-text is never stored", Left = FldX, Top = 26, Width = ContentW - FldX - Pad, Height = 16, ForeColor = Color.DimGray, Font = new Font("Segoe UI", 7.5f) });
+        p.Controls.Add(_pnlAppToken);
+
+        _pnlAppReuseHint = new Panel { Left = 0, Top = y, Width = ContentW, Height = 20 };
+        _pnlAppReuseHint.Controls.Add(new Label { Text = "ℹ️ Using config server token - no second token needed", Left = FldX, Top = 0, Width = ContentW - FldX - Pad, Height = 20, ForeColor = Color.FromArgb(0, 100, 150), Font = new Font("Segoe UI", 8.5f) });
+        p.Controls.Add(_pnlAppReuseHint);
+
+        RefreshCfgTokenVisibility();
+        RefreshAppTokenVisibility();
 
         return p;
+    }
+
+    private void RefreshCfgVisibility()
+    {
+        var isGitHub = _radCfgGitHub?.Checked ?? false;
+        if (_pnlCfgOwnerRepo != null) _pnlCfgOwnerRepo.Visible = isGitHub;
+        if (_pnlCfgProjectId != null) _pnlCfgProjectId.Visible = !isGitHub;
+        if (_btnCfgExpiry    != null) _btnCfgExpiry.Visible     = !isGitHub;
+        if (_urlBox          != null) _urlBox.PlaceholderText   = isGitHub ? "https://github.com" : "https://gitlab.example.com";
+        if (_tokenPlainBox   != null) _tokenPlainBox.PlaceholderText = isGitHub ? "ghp_xxxxxxxxxxxx" : "glpat-xxxxxxxxxxxx";
+        RefreshAppSameAvailability();
+    }
+
+    private void RefreshCfgTokenVisibility()
+    {
+        var isPublic = _radCfgPublic?.Checked ?? false;
+        if (_pnlCfgToken != null)
+        {
+            foreach (Control c in _pnlCfgToken.Controls)
+            {
+                if (c is TextBox tb)  { tb.ReadOnly = isPublic; tb.BackColor = isPublic ? Color.FromArgb(240, 240, 240) : Color.White; }
+                if (c is Button btn && btn.Text.Contains("Update")) btn.Enabled = !isPublic;
+                if (c is Button exp && exp.Text.Contains("Expiry")) exp.Enabled = !isPublic;
+            }
+        }
+        RefreshAppTokenVisibility();
+    }
+
+    private void RefreshAppVisibility()
+    {
+        var isGitHub = _radAppGitHub?.Checked ?? false;
+        if (_pnlAppOwnerRepo  != null) _pnlAppOwnerRepo.Visible  = isGitHub;
+        if (_pnlAppProjectId  != null) _pnlAppProjectId.Visible  = !isGitHub;
+        if (_appTokenPlainBox != null) _appTokenPlainBox.PlaceholderText = isGitHub ? "ghp_xxxxxxxxxxxx" : "glpat-xxxxxxxxxxxx";
+        RefreshAppSameAvailability();
+        RefreshAppTokenVisibility();
+    }
+
+    private void RefreshAppSameAvailability()
+    {
+        if (_chkAppUrlSame == null) return;
+        var cfgIsGitHub = _radCfgGitHub?.Checked ?? false;
+        var appIsGitHub = _radAppGitHub?.Checked ?? false;
+        var sameEnabled = cfgIsGitHub == appIsGitHub;
+        _chkAppUrlSame.Enabled   = sameEnabled;
+        _chkAppUrlSame.ForeColor = sameEnabled ? Color.FromArgb(30, 30, 30) : Color.DimGray;
+        if (!sameEnabled && _chkAppUrlSame.Checked)
+        {
+            _chkAppUrlSame.Checked = false;
+            if (_appUrlBox != null) { _appUrlBox.ReadOnly = false; _appUrlBox.BackColor = Color.White; }
+        }
+    }
+
+    private void RefreshAppTokenVisibility()
+    {
+        if (_pnlAppToken == null || _pnlAppReuseHint == null) return;
+        var isPublic    = _radAppPublic?.Checked  ?? true;
+        var isSame      = _chkAppUrlSame?.Checked ?? false;
+        var cfgHasToken = !(_radCfgPublic?.Checked ?? false);
+
+        if (isPublic)
+        {
+            //Grey out token fields rather than hiding them
+            SetPanelGreyed(_pnlAppToken, true);
+            _pnlAppReuseHint.Visible = false;
+        }
+        else if (isSame && cfgHasToken)
+        {
+            SetPanelGreyed(_pnlAppToken, true);
+            _pnlAppReuseHint.Visible = true;
+        }
+        else
+        {
+            SetPanelGreyed(_pnlAppToken, false);
+            _pnlAppReuseHint.Visible = false;
+        }
+    }
+
+    private static void SetPanelGreyed(Panel pnl, bool greyed)
+    {
+        foreach (Control c in pnl.Controls)
+        {
+            if (c is TextBox tb)  { tb.ReadOnly = greyed; tb.BackColor = greyed ? Color.FromArgb(240, 240, 240) : Color.White; }
+            if (c is Button btn)  btn.Enabled = !greyed;
+        }
     }
 
     //######################################
@@ -585,12 +827,17 @@ public class SettingsWindow : Form
         _runasListBox.SelectedIndexChanged += (_, _) => LoadSelectedProfile();
         p.Controls.Add(_runasListBox);
 
-        int rx  = Pad + listW + 14;   // left edge of right panel
-        int rw  = ContentW - rx - Pad; // available width
+        //Left edge of right panel
+        int rx  = Pad + listW + 14;
+        //Available width
+        int rw  = ContentW - rx - Pad; 
         int ry  = y;
-        int rlw = 96;                  // label width
-        int rfx = rx + rlw + 4;        // field x
-        int rfw = rw - rlw - 4;        // field width
+        //Label width
+        int rlw = 96;       
+        //Field X
+        int rfx = rx + rlw + 4;      
+        //Field Width
+        int rfw = rw - rlw - 4;       
 
         p.Controls.Add(new Label { Text = "Profile Name:", Left = rx, Top = ry + 3, Width = rlw, Height = 20, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Segoe UI", 9f) });
         _runasNameBox = MakeTxt("", rfx, ry, rfw); p.Controls.Add(_runasNameBox); ry += 30;
@@ -622,10 +869,25 @@ public class SettingsWindow : Form
             if (_selectedProfileIndex < 0 || _selectedProfileIndex >= _runasProfiles.Count) return;
             _runasProfiles[_selectedProfileIndex].Name     = _runasNameBox?.Text.Trim() ?? "";
             _runasProfiles[_selectedProfileIndex].Username = _runasUserBox?.Text.Trim() ?? "";
-            _runasProfiles[_selectedProfileIndex].Password = _runasPassBox?.Text ?? "";
+            //Encrypt password directly from textbox without storing as plain string
+            var passText = _runasPassBox?.Text ?? "";
+            if (!string.IsNullOrEmpty(passText))
+            {
+                var secure = new System.Security.SecureString();
+                foreach (var c in passText) secure.AppendChar(c);
+                secure.MakeReadOnly();
+                _runasProfiles[_selectedProfileIndex].EncryptFromSecureString(secure);
+                secure.Dispose();
+            }
+            else
+            {
+                _runasProfiles[_selectedProfileIndex].PasswordEncrypted = "";
+            }
+            if (_runasPassBox != null) _runasPassBox.Clear();
             _runasListBox.Items[_selectedProfileIndex] = _runasProfiles[_selectedProfileIndex].Name;
             Status("✅ Profile saved - click 'Save & Apply' to write to disk");
         };
+
         btnDel.Click += (_, _) =>
         {
             if (_selectedProfileIndex < 0 || _runasProfiles.Count <= 1)
@@ -700,18 +962,26 @@ public class SettingsWindow : Form
                 "Your RunAs profile passwords and personal settings will not be deleted.",
                 "Restore Defaults", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
             {
-                _urlBox!.Text                 = "";
-                _pollBox!.Value               = 300;
-                _diagCheck!.Checked           = false;
-                _manualCheck!.Checked         = false;
-                _onlySubscribedCheck!.Checked = false;
-                _warnDaysBox!.Value           = 0;
-                _appProjectIdBox!.Value       = 0;
-                _appRepoPathBox!.Text         = "";
+                _urlBox!.Text                  = "";
+                if (_cfgRepoOwnerBox != null) _cfgRepoOwnerBox.Text = "";
+                if (_cfgRepoNameBox  != null) _cfgRepoNameBox.Text  = "";
+                if (_radCfgPrivate   != null) _radCfgPrivate.Checked = true;
+                if (_appUrlBox       != null) { _appUrlBox.Text = "https://github.com"; _appUrlBox.ReadOnly = false; _appUrlBox.BackColor = Color.White; }
+                if (_chkAppUrlSame   != null) _chkAppUrlSame.Checked = false;
+                if (_appProjectIdBox != null) _appProjectIdBox.Value = 0;
+                if (_appRepoPathBox  != null) _appRepoPathBox.Text   = "";
+                if (_appRepoOwnerBox != null) _appRepoOwnerBox.Text  = "";
+                if (_appRepoNameBox  != null) _appRepoNameBox.Text   = "";
+                if (_radAppPublic    != null) _radAppPublic.Checked  = true;
+                _pollBox!.Value                = 300;
+                _diagCheck!.Checked            = false;
+                _manualCheck!.Checked          = false;
+                _onlySubscribedCheck!.Checked  = false;
+                _warnDaysBox!.Value            = 0;
                 _urlBrowserCombo!.SelectedItem = "Default";
-                _urlBrowserPathBox!.Text      = "";
-                _browserCombo!.SelectedItem   = "Default";
-                _browserPathBox!.Text         = "";
+                _urlBrowserPathBox!.Text       = "";
+                _browserCombo!.SelectedItem    = "Default";
+                _browserPathBox!.Text          = "";
 
                 Status("⏳ Restoring org defaults...");
                 var orgResult = await ConfigLoader.ForceApplyOrgDefaultsAsync();
@@ -776,6 +1046,9 @@ public class SettingsWindow : Form
     private static TextBox MakeTxt(string text, int x, int y, int width, bool password = false) =>
         new() { Text = text, Left = x, Top = y, Width = width, UseSystemPasswordChar = password, Font = new Font("Segoe UI", 9f), BorderStyle = BorderStyle.FixedSingle };
 
+    private static RadioButton MakeRadio(string text, int x, int y, bool check) =>
+        new() { Text = text, Left = x, Top = y + 3, Width = 70, Height = 20, Checked = check, Font = new Font("Segoe UI", 9f) };
+
     private static Button MakeBtn(string text, int x, int y, int width) =>
         new() { Text = text, Left = x, Top = y, Width = width, Height = 27, Font = new Font("Segoe UI", 9f) };
 
@@ -801,7 +1074,12 @@ public class SettingsWindow : Form
         var profile = _runasProfiles[_selectedProfileIndex];
         if (_runasNameBox != null) _runasNameBox.Text = profile.Name;
         if (_runasUserBox != null) _runasUserBox.Text = profile.Username;
-        if (_runasPassBox != null) _runasPassBox.Text = profile.Password;
+        // Never show decrypted password - show placeholder if one is saved
+        if (_runasPassBox != null)
+        {
+            _runasPassBox.Clear();
+            _runasPassBox.PlaceholderText = profile.HasSavedPassword ? "••••••••" : "Leave blank - Windows prompts at launch";
+        }
     }
 
     private void SaveSettings()
@@ -809,19 +1087,30 @@ public class SettingsWindow : Form
         try
         {
             var cfg = ConfigLoader.AppConfig;
+            //Config Server
+            cfg.CfgPlatform             = (_radCfgGitHub?.Checked == true) ? "github" : "gitlab";
             cfg.UrlServer               = _urlBox?.Text.Trim()                  ?? cfg.UrlServer;
+            cfg.CfgRepoOwner            = _cfgRepoOwnerBox?.Text.Trim()         ?? cfg.CfgRepoOwner;
+            cfg.CfgRepoName             = _cfgRepoNameBox?.Text.Trim()          ?? cfg.CfgRepoName;
+            cfg.CfgPublic               = _radCfgPublic?.Checked                ?? cfg.CfgPublic;
+            cfg.FlavourProjectId        = (int?)_projectIdBox?.Value            ?? cfg.FlavourProjectId;
+            //App Updates
+            cfg.AppPlatform             = (_radAppGitHub?.Checked == true) ? "github" : "gitlab";
+            cfg.AppUrlServer            = (_chkAppUrlSame?.Checked == true)
+                ? (_urlBox?.Text.Trim() ?? cfg.UrlServer)
+                : (_appUrlBox?.Text.Trim() ?? cfg.AppUrlServer);
+            cfg.AppRepoOwner            = _appRepoOwnerBox?.Text.Trim()         ?? cfg.AppRepoOwner;
+            cfg.AppRepoName             = _appRepoNameBox?.Text.Trim()          ?? cfg.AppRepoName;
+            cfg.AppPublic               = _radAppPublic?.Checked                ?? cfg.AppPublic;
+            cfg.AppProjectId            = (int?)_appProjectIdBox?.Value         ?? cfg.AppProjectId;
+            cfg.AppRepoPath             = _appRepoPathBox?.Text.Trim()          ?? cfg.AppRepoPath;
+            //Shared
             cfg.Flavour                 = (string?)_flavourCombo?.SelectedItem  ?? cfg.Flavour;
             cfg.Diagnostics             = _diagCheck?.Checked                   ?? cfg.Diagnostics;
             cfg.ManualMode              = _manualCheck?.Checked                 ?? cfg.ManualMode;
             cfg.ShowOnlySubscribedFlavour = _onlySubscribedCheck?.Checked       ?? cfg.ShowOnlySubscribedFlavour;
             cfg.FlavourPollSeconds      = (int?)_pollBox?.Value                 ?? cfg.FlavourPollSeconds;
-            cfg.FlavourProjectId        = (int?)_projectIdBox?.Value            ?? cfg.FlavourProjectId;
             cfg.TokenExpiryWarnDays     = (int?)_warnDaysBox?.Value             ?? cfg.TokenExpiryWarnDays;
-            cfg.AppUrlServer            = (_chkAppUrlSame?.Checked == true)
-                ? (_urlBox?.Text.Trim() ?? cfg.UrlServer)
-                : (_appUrlBox?.Text.Trim() ?? cfg.AppUrlServer);
-            cfg.AppProjectId            = (int?)_appProjectIdBox?.Value         ?? cfg.AppProjectId;
-            cfg.AppRepoPath             = _appRepoPathBox?.Text.Trim()          ?? cfg.AppRepoPath;
             cfg.UrlBrowserName          = (_urlBrowserCombo?.SelectedItem?.ToString() ?? "default").ToLowerInvariant();
             cfg.UrlBrowserPath          = _urlBrowserPathBox?.Text.Trim()       ?? cfg.UrlBrowserPath;
             cfg.BrowserName             = (_browserCombo?.SelectedItem?.ToString() ?? "default").ToLowerInvariant();
@@ -832,12 +1121,13 @@ public class SettingsWindow : Form
             TokenManager.Reset();
             Status("✅ Settings saved and applied");
         }
+        
         catch (Exception ex) { Status($"❌ Save failed: {ex.Message}"); }
     }
 
     private void CheckFlavourUpdates()
     {
-        Status("⏳ Checking GitLab for flavour updates...");
+        Status("⏳ Checking for flavour updates...");
         _ = Task.Run(async () =>
         {
             await ConfigLoader.CheckFlavourUpdateAsync();

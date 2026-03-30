@@ -6,25 +6,36 @@
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationIcon>assets\PandaTools.ico</ApplicationIcon>
-    <Version>2.9.0</Version>
-    <AssemblyVersion>2.9.0</AssemblyVersion>
-    <FileVersion>2.9.0</FileVersion>
+    <Version>3.0.0</Version>
+    <AssemblyVersion>3.0.0</AssemblyVersion>
+    <FileVersion>3.0.0</FileVersion>
   </PropertyGroup>
 
   <!--
     CI Build Injection
-    Passed in by GitLab CI pipeline via -p:GitLabUrl=... etc.
-    Fallback values are intentionally blank so public/local builds ship with no LBU defaults.
+    Passed in by GitLab CI or GitHub Actions via -p:PropertyName=value
+    Fallback values are intentionally blank so public/local builds ship with no defaults.
     The app reads these at runtime via AppContext.GetData() and uses them as first-run defaults
     only when no config.json exists. config.json always wins if it already exists.
   -->
   <PropertyGroup>
+    <!-- GitLab (config server legacy fields) -->
     <GitLabUrl       Condition="'$(GitLabUrl)'       == ''"></GitLabUrl>
     <GitLabProjectId Condition="'$(GitLabProjectId)' == ''">0</GitLabProjectId>
     <GitLabRepoPath  Condition="'$(GitLabRepoPath)'  == ''"></GitLabRepoPath>
+    <!-- Config server platform (github or gitlab) -->
+    <CfgPlatform     Condition="'$(CfgPlatform)'     == ''"></CfgPlatform>
+    <CfgRepoOwner    Condition="'$(CfgRepoOwner)'    == ''"></CfgRepoOwner>
+    <CfgRepoName     Condition="'$(CfgRepoName)'     == ''"></CfgRepoName>
+    <!-- App update server platform (github or gitlab) -->
+    <AppPlatform     Condition="'$(AppPlatform)'     == ''"></AppPlatform>
+    <AppUrlServer    Condition="'$(AppUrlServer)'    == ''"></AppUrlServer>
+    <GitHubRepoOwner Condition="'$(GitHubRepoOwner)' == ''"></GitHubRepoOwner>
+    <GitHubRepoName  Condition="'$(GitHubRepoName)'  == ''"></GitHubRepoName>
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- GitLab config server (legacy / internal GitLab builds) -->
     <RuntimeHostConfigurationOption Include="PandaTools.GitLabUrl"
                                     Value="$(GitLabUrl)"
                                     Trim="true" />
@@ -33,6 +44,29 @@
                                     Trim="true" />
     <RuntimeHostConfigurationOption Include="PandaTools.GitLabRepoPath"
                                     Value="$(GitLabRepoPath)"
+                                    Trim="true" />
+    <!-- Config server platform and repo (GitHub or GitLab) -->
+    <RuntimeHostConfigurationOption Include="PandaTools.CfgPlatform"
+                                    Value="$(CfgPlatform)"
+                                    Trim="true" />
+    <RuntimeHostConfigurationOption Include="PandaTools.CfgRepoOwner"
+                                    Value="$(CfgRepoOwner)"
+                                    Trim="true" />
+    <RuntimeHostConfigurationOption Include="PandaTools.CfgRepoName"
+                                    Value="$(CfgRepoName)"
+                                    Trim="true" />
+    <!-- App update server platform and repo -->
+    <RuntimeHostConfigurationOption Include="PandaTools.AppPlatform"
+                                    Value="$(AppPlatform)"
+                                    Trim="true" />
+    <RuntimeHostConfigurationOption Include="PandaTools.AppUrlServer"
+                                    Value="$(AppUrlServer)"
+                                    Trim="true" />
+    <RuntimeHostConfigurationOption Include="PandaTools.GitHubRepoOwner"
+                                    Value="$(GitHubRepoOwner)"
+                                    Trim="true" />
+    <RuntimeHostConfigurationOption Include="PandaTools.GitHubRepoName"
+                                    Value="$(GitHubRepoName)"
                                     Trim="true" />
   </ItemGroup>
 

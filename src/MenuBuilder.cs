@@ -153,16 +153,11 @@ public static class MenuBuilder
                 string browserName = isIncognito ? cfg.BrowserName : cfg.UrlBrowserName;
                 string browserPath = isIncognito ? cfg.BrowserPath : cfg.UrlBrowserPath;
 
+                // Pass profile directly - CredentialPrompt.LaunchWithRunAs decrypts inline
                 RunAsProfile? resolvedProfile = null;
                 if (!string.IsNullOrWhiteSpace(item.RunAsProfile))
-                {
-                    var profile = cfg.RunAsProfiles.FirstOrDefault(p =>
+                    resolvedProfile = cfg.RunAsProfiles.FirstOrDefault(p =>
                         p.Name.Equals(item.RunAsProfile, StringComparison.OrdinalIgnoreCase));
-                    
-                    resolvedProfile = ResolveProfilePassword(profile);
-                    //User cancelled password prompt
-                    if (resolvedProfile == null) return;
-                }
 
                 LaunchURL.Open(urls, browserName, browserPath, isIncognito, resolvedProfile);
             },
@@ -286,21 +281,27 @@ public static class MenuBuilder
     //######################################
     //Resolve password for multi-URL launches
     //######################################
-    private static RunAsProfile? ResolveProfilePassword(RunAsProfile? profile)
+    //######################################
+    //Resolve password to SecureString without creating a plain string
+    //If a saved password exists it is decrypted directly to SecureString via DPAPI
+    //If not, the user is prompted and their input is captured as SecureString
+    //Caller is responsible for disposing the returned SecureString
+    //######################################
+    private static (RunAsProfile profile, System.Security.SecureString? password)? ResolveProfileWithPassword(RunAsProfile? profile)
     {
         if (profile == null) return null;
 
-        if (!string.IsNullOrEmpty(profile.Password)) return profile;
-
-        var (ok, entered) = CredentialPrompt.Show(profile.Username, $"Enter password for \"{profile.Username}\"");
-        if (!ok) return null;
-
-        return new RunAsProfile
+        if (profile.HasSavedPassword)
         {
-            Name     = profile.Name,
-            Username = profile.Username,
-            Password = entered
-        };
+            var secure = profile.DecryptToSecureString();
+            if (secure != null) return (profile, secure);
+        }
+
+        // No saved password - prompt
+        var (ok, entered) = CredentialPrompt.Show(profile.Username, $"Enter password for \"{profile.Name}\"");
+        if (!ok || entered == null) return null;
+
+        return (profile, entered);
     }
 
     //######################################

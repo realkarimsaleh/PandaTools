@@ -113,9 +113,8 @@ public static class ConfigLoader
     //######################################
     public static void Save(AppConfig cfg)
     {
-        foreach (var p in cfg.RunAsProfiles)
-            p.EncryptPassword();
-
+        //Passwords are always DPAPI-encrypted in PasswordEncrypted - migrate any legacy remnants
+        foreach (var p in cfg.RunAsProfiles) p.MigrateAndEncrypt();
         SerializeAndWrite(cfg);
         Reload();
     }
@@ -387,19 +386,13 @@ public static class ConfigLoader
             var cfg = JsonSerializer.Deserialize<AppConfig>(
                 File.ReadAllText(ConfigPath), JsonOpts) ?? new AppConfig();
 
-            bool needsMigration = false;
-            foreach (var p in cfg.RunAsProfiles)
-            {
-                p.DecryptPassword();
-                if (!string.IsNullOrEmpty(p.LegacyPassword) && string.IsNullOrEmpty(p.PasswordEncrypted))
-                    needsMigration = true;
-            }
-
+            // Migrate any legacy plain-text passwords to DPAPI on load
+            bool needsMigration = cfg.RunAsProfiles.Any(p =>
+                !string.IsNullOrEmpty(p.LegacyPassword) && string.IsNullOrEmpty(p.PasswordEncrypted));
             if (needsMigration)
             {
-                foreach (var p in cfg.RunAsProfiles) p.EncryptPassword();
+                foreach (var p in cfg.RunAsProfiles) p.MigrateAndEncrypt();
                 SerializeAndWrite(cfg);
-                foreach (var p in cfg.RunAsProfiles) p.DecryptPassword();
             }
 
             return cfg;
@@ -459,65 +452,140 @@ public static class ConfigLoader
     }
 
     //######################################
-    //Flavour folder sync via GitLab Tree API
-    //Lists every .json in flavours/, downloads new or changed files.
+    //Prepare HTTP headers for the config server
+    //GitHub: Authorization Bearer, GitLab: PRIVATE-TOKEN
+    //Public repos: no auth header
+    //######################################
+    private static void PrepareConfigHeaders()
+    {
+        if (!Http.DefaultRequestHeaders.UserAgent.Any())
+            Http.DefaultRequestHeaders.UserAgent.ParseAdd("PandaTools");
+
+        Http.DefaultRequestHeaders.Remove("PRIVATE-TOKEN");
+        Http.DefaultRequestHeaders.Remove("Authorization");
+
+        var cfg   = AppConfig;
+        var token = TokenManager.GetToken();
+        if (token == null || cfg.CfgPublic) return;
+
+        if (cfg.CfgIsGitHub)
+            Http.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", $"Bearer {token}");
+        else
+            Http.DefaultRequestHeaders.Add("PRIVATE-TOKEN", token);
+    }
+
+    //######################################
+    //Flavour folder sync - branches on CfgIsGitHub
     //######################################
     public static async Task CheckFlavourUpdateAsync()
     {
         try
         {
             var cfg = AppConfig;
-            if (cfg.ManualMode || cfg.FlavourProjectId == 0) return;
+            if (cfg.ManualMode) return;
 
-            var token = TokenManager.GetToken();
-            Http.DefaultRequestHeaders.Remove("PRIVATE-TOKEN");
-            if (token != null) Http.DefaultRequestHeaders.Add("PRIVATE-TOKEN", token);
-            if (!Http.DefaultRequestHeaders.UserAgent.Any())
-                Http.DefaultRequestHeaders.UserAgent.ParseAdd("PandaTools");
+            PrepareConfigHeaders();
 
-            var apiBase  = cfg.UrlServer.TrimEnd('/') + "/api/v4";
-            var repoPath = cfg.FlavourRepoPath.TrimEnd('/');
+            if (cfg.CfgIsGitHub)
+                await SyncFlavoursFromGitHub(cfg);
+            else
+                await SyncFlavoursFromGitLab(cfg);
+        }
+        catch { /* off-network or not configured - fail silently */ }
+    }
 
-            var treeUrl = $"{apiBase}/projects/{cfg.FlavourProjectId}/repository/tree" +
-                          $"?path={Uri.EscapeDataString(repoPath)}&ref=main&per_page=100";
+    //######################################
+    //GitHub Contents API flavour sync
+    //GET /repos/{owner}/{repo}/contents/{path}
+    //Returns array of { name, sha, download_url, type }
+    //######################################
+    private static async Task SyncFlavoursFromGitHub(AppConfig cfg)
+    {
+        var owner = cfg.CfgRepoOwner.Trim('/');
+        var repo  = cfg.CfgRepoName.Trim('/');
+        var path  = cfg.FlavourRepoPath.TrimEnd('/');
 
-            using var cts   = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            var treeJson    = await Http.GetStringAsync(treeUrl, cts.Token);
-            var treeEntries = JsonSerializer.Deserialize<JsonElement[]>(treeJson) ?? Array.Empty<JsonElement>();
+        if (string.IsNullOrWhiteSpace(owner) || string.IsNullOrWhiteSpace(repo)) return;
 
-            var anyChanged = false;
+        var contentsUrl = $"https://api.github.com/repos/{owner}/{repo}/contents/{path}";
 
-            foreach (var entry in treeEntries)
-            {
-                if (entry.GetProperty("type").GetString() != "blob") continue;
+        using var cts  = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var json       = await Http.GetStringAsync(contentsUrl, cts.Token);
+        var entries    = JsonSerializer.Deserialize<JsonElement[]>(json) ?? Array.Empty<JsonElement>();
+        var anyChanged = false;
 
-                var fileName = entry.GetProperty("name").GetString() ?? "";
-                if (!fileName.EndsWith(".json", StringComparison.OrdinalIgnoreCase)) continue;
-                if (fileName.StartsWith("local_flavour_", StringComparison.OrdinalIgnoreCase)) continue;
-                if (fileName.Equals("_Template.json", StringComparison.OrdinalIgnoreCase)) continue;
+        foreach (var entry in entries)
+        {
+            if (entry.GetProperty("type").GetString() != "file") continue;
 
-                var blobSha   = entry.GetProperty("id").GetString() ?? "";
-                var localPath = Path.Combine(FlavourDir, fileName);
+            var fileName = entry.GetProperty("name").GetString() ?? "";
+            if (!fileName.EndsWith(".json", StringComparison.OrdinalIgnoreCase)) continue;
+            if (fileName.StartsWith("local_flavour_", StringComparison.OrdinalIgnoreCase)) continue;
+            if (fileName.Equals("_Template.json", StringComparison.OrdinalIgnoreCase)) continue;
 
-                if (_flavourHashes.TryGetValue(fileName, out var cachedSha) &&
-                    cachedSha == blobSha &&
-                    File.Exists(localPath))
-                    continue;
+            var sha       = entry.GetProperty("sha").GetString() ?? "";
+            var localPath = Path.Combine(FlavourDir, fileName);
 
-                var filePath    = $"{repoPath}/{fileName}";
-                var encodedPath = Uri.EscapeDataString(filePath);
-                var rawUrl      = $"{apiBase}/projects/{cfg.FlavourProjectId}/repository/files/{encodedPath}/raw?ref=main";
+            if (_flavourHashes.TryGetValue(fileName, out var cachedSha) &&
+                cachedSha == sha && File.Exists(localPath))
+                continue;
 
-                var content = await Http.GetStringAsync(rawUrl);
-                await File.WriteAllTextAsync(localPath, content);
-                _flavourHashes[fileName] = blobSha;
-                anyChanged = true;
-            }
+            var downloadUrl = entry.GetProperty("download_url").GetString() ?? "";
+            if (string.IsNullOrEmpty(downloadUrl)) continue;
 
-            if (anyChanged) Reload();
+            var fileContent = await Http.GetStringAsync(downloadUrl);
+            await File.WriteAllTextAsync(localPath, fileContent);
+            _flavourHashes[fileName] = sha;
+            anyChanged = true;
         }
 
-        catch { /* off-network or not configured - fail silently */ }
+        if (anyChanged) Reload();
+    }
+
+    //######################################
+    //GitLab Tree API flavour sync (existing logic)
+    //######################################
+    private static async Task SyncFlavoursFromGitLab(AppConfig cfg)
+    {
+        if (cfg.FlavourProjectId == 0) return;
+
+        var apiBase  = cfg.UrlServer.TrimEnd('/') + "/api/v4";
+        var repoPath = cfg.FlavourRepoPath.TrimEnd('/');
+        var treeUrl  = $"{apiBase}/projects/{cfg.FlavourProjectId}/repository/tree" +
+                       $"?path={Uri.EscapeDataString(repoPath)}&ref=main&per_page=100";
+
+        using var cts   = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var treeJson    = await Http.GetStringAsync(treeUrl, cts.Token);
+        var treeEntries = JsonSerializer.Deserialize<JsonElement[]>(treeJson) ?? Array.Empty<JsonElement>();
+        var anyChanged  = false;
+
+        foreach (var entry in treeEntries)
+        {
+            if (entry.GetProperty("type").GetString() != "blob") continue;
+
+            var fileName = entry.GetProperty("name").GetString() ?? "";
+            if (!fileName.EndsWith(".json", StringComparison.OrdinalIgnoreCase)) continue;
+            if (fileName.StartsWith("local_flavour_", StringComparison.OrdinalIgnoreCase)) continue;
+            if (fileName.Equals("_Template.json", StringComparison.OrdinalIgnoreCase)) continue;
+
+            var blobSha   = entry.GetProperty("id").GetString() ?? "";
+            var localPath = Path.Combine(FlavourDir, fileName);
+
+            if (_flavourHashes.TryGetValue(fileName, out var cachedSha) &&
+                cachedSha == blobSha && File.Exists(localPath))
+                continue;
+
+            var filePath    = $"{repoPath}/{fileName}";
+            var encodedPath = Uri.EscapeDataString(filePath);
+            var rawUrl      = $"{apiBase}/projects/{cfg.FlavourProjectId}/repository/files/{encodedPath}/raw?ref=main";
+
+            var fileContent = await Http.GetStringAsync(rawUrl);
+            await File.WriteAllTextAsync(localPath, fileContent);
+            _flavourHashes[fileName] = blobSha;
+            anyChanged = true;
+        }
+
+        if (anyChanged) Reload();
     }
 
     //######################################
@@ -564,20 +632,54 @@ public static class ConfigLoader
     }
 
     //######################################
-    //Fetch defaults.json from the config repo
-    //Returns null if not configured, off-network, or parse fails.
+    //Fetch defaults.json - branches on CfgIsGitHub
     //######################################
     private static async Task<OrgDefaults?> FetchOrgDefaultsAsync()
     {
         var cfg = AppConfig;
-        if (cfg.FlavourProjectId == 0) return null;
         if (string.IsNullOrWhiteSpace(cfg.DefaultsRepoPath)) return null;
 
-        var token = TokenManager.GetToken();
-        Http.DefaultRequestHeaders.Remove("PRIVATE-TOKEN");
-        if (token != null) Http.DefaultRequestHeaders.Add("PRIVATE-TOKEN", token);
-        if (!Http.DefaultRequestHeaders.UserAgent.Any())
-            Http.DefaultRequestHeaders.UserAgent.ParseAdd("PandaTools");
+        PrepareConfigHeaders();
+
+        if (cfg.CfgIsGitHub)
+            return await FetchDefaultsFromGitHub(cfg);
+        else
+            return await FetchDefaultsFromGitLab(cfg);
+    }
+
+    //######################################
+    //GitHub Contents API defaults fetch
+    //######################################
+    private static async Task<OrgDefaults?> FetchDefaultsFromGitHub(AppConfig cfg)
+    {
+        var owner = cfg.CfgRepoOwner.Trim('/');
+        var repo  = cfg.CfgRepoName.Trim('/');
+        if (string.IsNullOrWhiteSpace(owner) || string.IsNullOrWhiteSpace(repo)) return null;
+
+        var contentsUrl = $"https://api.github.com/repos/{owner}/{repo}/contents/{cfg.DefaultsRepoPath}";
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var json      = await Http.GetStringAsync(contentsUrl, cts.Token);
+        var meta      = JsonSerializer.Deserialize<JsonElement>(json);
+        var sha       = meta.GetProperty("sha").GetString() ?? "";
+
+        if (sha != "" && sha == _lastDefaultsHash) return null;
+
+        var downloadUrl = meta.GetProperty("download_url").GetString() ?? "";
+        if (string.IsNullOrEmpty(downloadUrl)) return null;
+
+        var rawJson = await Http.GetStringAsync(downloadUrl);
+        var result  = JsonSerializer.Deserialize<OrgDefaults>(rawJson, JsonOpts);
+        if (result is not null) _lastDefaultsHash = sha;
+        return result;
+    }
+
+    //######################################
+    //GitLab API defaults fetch (existing logic)
+    //######################################
+    private static async Task<OrgDefaults?> FetchDefaultsFromGitLab(AppConfig cfg)
+    {
+        if (cfg.FlavourProjectId == 0) return null;
 
         var apiBase = cfg.UrlServer.TrimEnd('/') + "/api/v4";
         var encoded = Uri.EscapeDataString(cfg.DefaultsRepoPath);
@@ -593,7 +695,6 @@ public static class ConfigLoader
         var rawUrl  = $"{apiBase}/projects/{cfg.FlavourProjectId}/repository/files/{encoded}/raw?ref=main";
         var rawJson = await Http.GetStringAsync(rawUrl);
         var result  = JsonSerializer.Deserialize<OrgDefaults>(rawJson, JsonOpts);
-
         if (result is not null) _lastDefaultsHash = latest;
         return result;
     }
@@ -631,8 +732,7 @@ public static class ConfigLoader
                     cfg.RunAsProfiles.Add(new RunAsProfile
                     {
                         Name     = orgProfile.Name,
-                        Username = orgProfile.Username,
-                        Password = ""
+                        Username = orgProfile.Username
                     });
                     changed = true;
                 }
@@ -647,9 +747,8 @@ public static class ConfigLoader
     //######################################
     private static void PersistConfig(AppConfig cfg)
     {
-        foreach (var p in cfg.RunAsProfiles) p.EncryptPassword();
+        foreach (var p in cfg.RunAsProfiles) p.MigrateAndEncrypt();
         SerializeAndWrite(cfg);
-        foreach (var p in cfg.RunAsProfiles) p.DecryptPassword();
         Reload();
     }
 }

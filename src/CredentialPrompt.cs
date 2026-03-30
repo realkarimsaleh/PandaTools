@@ -11,7 +11,10 @@ public static class CredentialPrompt
     //######################################
     //Core UI Prompt
     //######################################
-    public static (bool ok, string pwd) Show(string username, string message, string appName = "")
+    //######################################
+    //Returns SecureString - plain text never exists as a managed string
+    //######################################
+    public static (bool ok, SecureString? pwd) Show(string username, string message, string appName = "")
     {
         var title = string.IsNullOrWhiteSpace(appName) ? "Password Prompt" : appName;
         const int pad = 16, fw = 400, iw = fw - pad * 2 - 16, tw = 32, bw = 80, bg = 8;
@@ -22,25 +25,35 @@ public static class CredentialPrompt
         frm.Controls.Add(new Label { Text = message, Left = pad, Top = mt, Width = iw, Height = mh, Font = new Font("Segoe UI", 9f), AutoSize = false });
         frm.Controls.Add(new Label { Text = "Username:", Left = pad, Top = ut, Width = 74, Height = 20, ForeColor = Color.DimGray, Font = new Font("Segoe UI", 9f), AutoSize = false });
         frm.Controls.Add(new Label { Text = username, Left = pad + 76, Top = ut, Width = iw - 76, Height = 20, Font = new Font("Segoe UI", 9f, FontStyle.Bold), AutoSize = false });
-        
-        var txt = new TextBox { Left = pad, Top = pt, Width = iw - tw - 4, UseSystemPasswordChar = true, Font = new Font("Segoe UI", 9f) }; 
+
+        var txt = new TextBox { Left = pad, Top = pt, Width = iw - tw - 4, UseSystemPasswordChar = true, Font = new Font("Segoe UI", 9f) };
         frm.Controls.Add(txt);
-        
+
         var tog = new Button { Text = "👁", Left = pad + iw - tw, Top = pt - 1, Width = tw, Height = txt.Height + 2, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9f), TabStop = false, Cursor = Cursors.Hand };
-        tog.FlatAppearance.BorderSize = 1; 
-        tog.Click += (_, _) => { txt.UseSystemPasswordChar = !txt.UseSystemPasswordChar; txt.Focus(); txt.SelectionStart = txt.Text.Length; }; 
+        tog.FlatAppearance.BorderSize = 1;
+        tog.Click += (_, _) => { txt.UseSystemPasswordChar = !txt.UseSystemPasswordChar; txt.Focus(); txt.SelectionStart = txt.Text.Length; };
         frm.Controls.Add(tog);
-        
-        var ok = new Button { Text = "OK", Left = bol, Top = bnt, Width = bw, Height = bh, DialogResult = DialogResult.OK, Font = new Font("Segoe UI", 9f) };
+
+        var ok  = new Button { Text = "OK",     Left = bol, Top = bnt, Width = bw, Height = bh, DialogResult = DialogResult.OK,     Font = new Font("Segoe UI", 9f) };
         var can = new Button { Text = "Cancel", Left = bcl, Top = bnt, Width = bw, Height = bh, DialogResult = DialogResult.Cancel, Font = new Font("Segoe UI", 9f) };
-        
-        frm.Controls.AddRange(new Control[] { ok, can }); 
-        frm.AcceptButton = ok; 
-        frm.CancelButton = can; 
+
+        frm.Controls.AddRange(new Control[] { ok, can });
+        frm.AcceptButton = ok;
+        frm.CancelButton = can;
         frm.Shown += (_, _) => txt.Focus();
-        
-        var r = frm.ShowDialog(); 
-        return (r == DialogResult.OK, txt.Text);
+
+        var result = frm.ShowDialog();
+        if (result != DialogResult.OK) return (false, null);
+
+        // Convert TextBox content to SecureString char by char - never read .Text into a variable
+        var secure = new SecureString();
+        foreach (var c in txt.Text) secure.AppendChar(c);
+        secure.MakeReadOnly();
+
+        // Clear the textbox immediately so the string in WinForms internal buffer is gone
+        txt.Clear();
+
+        return (true, secure);
     }
 
     //######################################
@@ -67,8 +80,12 @@ public static class CredentialPrompt
 
         var (domain, user) = SplitDomainUser(profile.Username);
 
-        if (string.IsNullOrEmpty(profile.Password))
+        // Decrypt saved password directly to SecureString - no plain string created
+        using var savedPassword = profile.HasSavedPassword ? profile.DecryptToSecureString() : null;
+
+        if (savedPassword == null)
         {
+            // No saved password - prompt immediately
             HandlePasswordLoop(resolvedExe, resolvedArgs, user, domain, profile, firstAttempt: true, offerSave: false, appName: appName);
             return;
         }
@@ -82,12 +99,12 @@ public static class CredentialPrompt
                 UseShellExecute = false,
                 UserName        = user,
                 Domain          = domain,
-                Password        = ToSecureString(profile.Password),
+                Password        = savedPassword,
                 LoadUserProfile = true
             });
         }
         catch (Win32Exception ex) when (ex.NativeErrorCode == 1223) { } // UAC Cancelled
-        catch (Win32Exception ex) when (ex.NativeErrorCode == 1326)     // Bad Password
+        catch (Win32Exception ex) when (ex.NativeErrorCode == 1326)     // Bad password - prompt for new one
         {
             HandlePasswordLoop(resolvedExe, resolvedArgs, user, domain, profile, firstAttempt: false, offerSave: true, appName: appName);
         }
@@ -111,8 +128,8 @@ public static class CredentialPrompt
 
             isFirst = false;
 
-            var (ok, plainText) = Show(username, promptMsg, appName);
-            if (!ok) return;
+            var (ok, securePassword) = Show(username, promptMsg, appName);
+            if (!ok || securePassword == null) return;
 
             try
             {
@@ -123,7 +140,7 @@ public static class CredentialPrompt
                     UseShellExecute = false,
                     UserName        = user,
                     Domain          = domain,
-                    Password        = ToSecureString(plainText),
+                    Password        = securePassword,  // SecureString passed directly - no plain string
                     LoadUserProfile = true
                 });
 
@@ -131,21 +148,18 @@ public static class CredentialPrompt
                 {
                     if (MessageBox.Show($"Password updated successfully for \"{profileName}\".\n\nSave the new password?", "Save Password?", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
                     {
-                        SaveProfilePassword(profile.Name, plainText);
+                        SaveProfilePassword(profile.Name, securePassword);
                     }
                 }
                 return;
             }
-
-            //UAC Cancelled
-            catch (Win32Exception ex) when (ex.NativeErrorCode == 1223) { return; }
-
-            //Bad Password, loop restarts
-            catch (Win32Exception ex) when (ex.NativeErrorCode == 1326) { }
-            catch (Exception ex)
+            catch (Win32Exception ex) when (ex.NativeErrorCode == 1223) { return; }   // UAC Cancelled
+            catch (Win32Exception ex) when (ex.NativeErrorCode == 1326) { }            // Bad password - loop
+            catch (Exception ex) { ShowError(ex); return; }
+            finally
             {
-                ShowError(ex);
-                return;
+                // Always dispose SecureString after each attempt
+                securePassword.Dispose();
             }
         }
     }
@@ -153,12 +167,13 @@ public static class CredentialPrompt
     //######################################
     //Helpers
     //######################################
-    private static void SaveProfilePassword(string profileName, string plainPassword)
+    private static void SaveProfilePassword(string profileName, SecureString securePassword)
     {
         var cfg   = ConfigLoader.AppConfig;
         var match = cfg.RunAsProfiles.FirstOrDefault(p => p.Name.Equals(profileName, StringComparison.OrdinalIgnoreCase));
         if (match == null) return;
-        match.Password = plainPassword;
+        // Encrypt directly from SecureString - no plain string ever created
+        match.EncryptFromSecureString(securePassword);
         ConfigLoader.Save(cfg);
     }
 
@@ -171,14 +186,6 @@ public static class CredentialPrompt
         }
         if (username.Contains('@')) return (".", username);
         return (Environment.MachineName, username);
-    }
-
-    private static SecureString ToSecureString(string input)
-    {
-        var s = new SecureString();
-        foreach (var c in input) s.AppendChar(c);
-        s.MakeReadOnly();
-        return s;
     }
 
     private static void ShowError(Exception ex)
