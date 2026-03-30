@@ -1,5 +1,43 @@
 # PandaTools Changelog
 
+## [3.0.0] - 30/03/2026
+### Added
+- **Full GitHub and GitLab platform support** - both the config server (flavours, defaults, scripts) and the app update server can now be independently configured as either GitHub or GitLab, making PandaTools fully open source ready
+- **GitHub flavour syncing** - flavours, defaults and org config can now be hosted on a public or private GitHub repo using the GitHub Contents API with SHA-based caching, mirroring the existing GitLab Tree API implementation
+- **GitHub app releases** - app update checker now supports GitHub Releases API (`browser_download_url`) alongside the existing GitLab releases logic, detected automatically from the configured platform
+- **Dual token management** - `TokenManager` now handles a config server token and a separate app update token independently; if both servers are the same instance the config token is reused automatically with no second token required
+- **App token encrypted field** - `app_token_encrypted` added to `config.json` for private app update repos on a different server from config, DPAPI encrypted same as the config token
+- **Platform visibility controls** - Public/Private visibility selector for both Config Server and App Updates; public repos grey out the token field rather than hiding it so the layout stays consistent
+- **"Same as Config Server" checkbox** - when both servers are on the same platform and URL, one tick mirrors the app server URL and reuses the config token automatically; disabled when platforms differ
+- **GitHub Actions release workflow** - new `.github/workflows/release.yml` builds and publishes releases independently on GitHub using `secrets.GITHUB_TOKEN` (automatic, no setup) and the self-hosted runner; completely separate from the GitLab CI pipeline
+- **Self-hosted runner support** - GitHub Actions workflow configured for `runs-on: self-hosted` using `WIN10-CLIENT-02` so no GitHub-hosted runner minutes are consumed
+- **`APP_VERSION` fallback in both CI files** - both GitLab CI and GitHub Actions derive version from the git tag when present and fall back to `APP_VERSION` variable for manual pipeline runs
+
+### Changed
+- **Settings window completely redesigned** - replaced the tall single-column scrolling layout with a compact sidebar navigation window (760 x 640); five sections: Connection, Flavour, Browser, RunAs Profiles, Advanced
+- **Connection tab redesigned with two groups** - Config Server (platform, server URL, repo owner/name or project ID, visibility, token) and App Updates (same structure plus Same as Config Server checkbox); each group has an inline subtitle right-aligned to the far edge of the window
+- **Platform radio buttons isolated per group** - each pair of radios lives in its own Panel container so selecting GitHub in Config Server no longer deselects GitLab in App Updates
+- **Token fields grey out instead of hiding when Public is selected** - field becomes read-only with grey background, Update Token button disables; layout remains stable
+- **Check Expiry button hidden for GitHub** - GitHub PATs have no expiry API endpoint; the button only appears for GitLab config servers
+- **"no token needed" hint aligned with radio button text** - vertically centred on the same baseline as the radio labels
+- **DPAPI hint aligned with token input box** - left edge of hint matches left edge of the field above it
+- **Footer status label moved above buttons** - status messages no longer compete with button labels for horizontal space
+- **GitLab CI fully decoupled from GitHub** - `.gitlab-ci.yml` now only builds and publishes to GitLab; all GitHub variables and cross-posting removed; artifact expiry reduced from 90 days to 1 day since the permanent copy lives in the GitLab Generic Packages registry
+- **Version derived from git tag in both CI pipelines** - `-p:Version` is set from `CI_COMMIT_TAG` / `github.ref_name` at build time; `APP_VERSION` is a fallback only
+- **CI files moved to `ci/` folder** - `.gitlab-ci.yml` lives in `ci/` (configure GitLab → Settings → CI/CD → configuration file path); GitHub Actions lives in `.github/workflows/` as required
+- **`PandaTools.csproj` updated** - added `RuntimeHostConfigurationOption` entries for `CfgPlatform`, `CfgRepoOwner`, `CfgRepoName`, `AppPlatform`, `AppUrlServer`, `GitHubRepoOwner`, `GitHubRepoName`; all default to blank so local builds ship with no defaults
+
+### Security
+- **RunAs passwords never stored as plain strings** - `RunAsProfile.Password` string property removed entirely; replaced with `DecryptToSecureString()` (DPAPI bytes → `SecureString` directly, UTF8 byte array zeroed in `finally`) and `EncryptFromSecureString()` (`SecureString` → unmanaged pointer → DPAPI bytes, zeroed with `ZeroFreeGlobalAllocUnicode`)
+- **Credential prompt returns `SecureString`** - `CredentialPrompt.Show()` now returns `(bool, SecureString?)` instead of `(bool, string)`; textbox is cleared immediately after capture; `ToSecureString(string)` helper removed
+- **`HandlePasswordLoop` uses `SecureString` throughout** - `SecureString` disposed in `finally` on every iteration regardless of outcome
+- **`SaveProfilePassword` takes `SecureString`** - calls `EncryptFromSecureString` directly, no plain string created
+- **LapsClient uses `DecryptToSecureString()`** - all three credential blocks updated; char-by-char iteration over `profile.Password` replaced
+- **PandaShellWindow clipboard copy secured** - password decrypted via `SecureStringToGlobalAllocUnicode` and `ZeroFreeGlobalAllocUnicode`; unmanaged buffer zeroed immediately after `Clipboard.SetText`
+- **PandaShellWindow and PandaLapsWindow prompts return `SecureString`** - local `PwdPrompt` updated to match; temporary profiles built via `EncryptFromSecureString` rather than assigning plain text
+- **Legacy plain-text password migration** - `MigrateAndEncrypt()` replaces `EncryptPassword()`/`DecryptPassword()` pair; runs automatically on load and clears `LegacyPassword` field; passwords are never decrypted to strings during the migration path
+- **`RunAsProfile` default initialiser** - removed `Password = ""` from all default and seeded profile initialisers across `AppConfig`, `ConfigLoader`, and `MenuBuilder`
+
 ## [2.9.0] - 30/03/26
 ### Added
 - **Dual GitLab server support** - `app_url_server` field added to `config.json` allowing the app update checker to point at a different GitLab instance from the config and flavour server; defaults to `https://gitlab.com` for public open source builds
