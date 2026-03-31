@@ -6,7 +6,7 @@ on:
       - 'v*'
 
 env:
-  APP_VERSION: "3.0.0"
+  APP_VERSION: "3.0.0"  
 
 jobs:
   build-and-release:
@@ -97,20 +97,54 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $exeName = "PandaToolsSetup-${{ github.ref_name }}.exe"
-          $notes   = Get-Content release_notes.txt -Raw
-
-          # Delete existing release on this tag (handles reruns)
-          $existing = gh release view "${{ github.ref_name }}" --json id 2>$null
-          if ($existing) {
-            gh release delete "${{ github.ref_name }}" --yes --cleanup-tag
-            Write-Host "Deleted existing release ${{ github.ref_name }}"
+          $exeName  = "PandaToolsSetup-${{ github.ref_name }}.exe"
+          $notes    = Get-Content release_notes.txt -Raw
+          $owner    = "${{ github.repository_owner }}"
+          $repo     = "${{ github.event.repository.name }}"
+          $tag      = "${{ github.ref_name }}"
+          $apiBase  = "https://api.github.com/repos/$owner/$repo"
+          $headers  = @{
+            "Authorization"        = "Bearer $env:GH_TOKEN"
+            "Accept"               = "application/vnd.github+json"
+            "X-GitHub-Api-Version" = "2022-11-28"
           }
 
-          # Create release and upload asset in one step
-          gh release create "${{ github.ref_name }}" `
-            --title "PandaTools ${{ github.ref_name }}" `
-            --notes $notes `
-            $exeName
+          # Delete existing release on this tag (handles reruns)
+          try {
+            $existing = Invoke-RestMethod -Uri "$apiBase/releases/tags/$tag" -Headers $headers -ErrorAction Stop
+            Invoke-RestMethod -Uri "$apiBase/releases/$($existing.id)" -Method Delete -Headers $headers -ErrorAction Stop
+            Write-Host "Deleted existing release $tag"
+          } catch {
+            Write-Host "No existing release to delete - continuing"
+          }
 
-          Write-Host "GitHub release published: ${{ github.ref_name }}"
+          # Create the release
+          $payload = @{
+            tag_name   = $tag
+            name       = "PandaTools $tag"
+            body       = $notes
+            draft      = $false
+            prerelease = $false
+          } | ConvertTo-Json -Depth 3
+
+          $release = Invoke-RestMethod `
+            -Uri         "$apiBase/releases" `
+            -Method      Post `
+            -Headers     $headers `
+            -Body        $payload `
+            -ContentType "application/json"
+
+          Write-Host "Release created: $($release.html_url)"
+
+          # Upload exe asset
+          $uploadUri = $release.upload_url -replace '\{.*\}', "?name=$exeName"
+          $uploadHeaders = $headers.Clone()
+          $uploadHeaders["Content-Type"] = "application/octet-stream"
+          $exeBytes = [System.IO.File]::ReadAllBytes((Resolve-Path $exeName))
+          $asset = Invoke-RestMethod `
+            -Uri     $uploadUri `
+            -Method  Post `
+            -Headers $uploadHeaders `
+            -Body    $exeBytes
+
+          Write-Host "Asset uploaded: $($asset.browser_download_url)"
