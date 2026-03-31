@@ -3,7 +3,7 @@ stages:
   - release
 
 variables:
-  APP_VERSION: "3.0.0"  
+  APP_VERSION: "3.0.0"
   PROJECT_NAME: "PandaTools"
 
 build:
@@ -14,7 +14,7 @@ build:
     - $env:PATH = "C:\Program Files\dotnet;$env:PATH"
 
     ##
-    ##Derive version from git tag if present, otherwise fall back to APP_VERSION
+    ## Derive version from git tag if present, otherwise fall back to APP_VERSION
     ##
     - $version = if ($env:CI_COMMIT_TAG) { $env:CI_COMMIT_TAG.TrimStart("v") } else { $env:APP_VERSION }
     - Write-Host "Building version: $version"
@@ -22,11 +22,11 @@ build:
     - dotnet restore PandaTools.csproj
 
     ##
-    ##All CI_ variables below are injected automatically by GitLab - no setup needed.
-    ##CI_SERVER_URL   → PandaTools.GitLabUrl        (config server URL)
-    ##CI_PROJECT_ID   → PandaTools.GitLabProjectId  (flavour and defaults polling project)
-    ##CI_PROJECT_PATH → PandaTools.GitLabRepoPath   (e.g. service-delivery/pandatools)
-    ##CfgPlatform     → "gitlab" (config and flavours live on this GitLab instance)
+    ## All CI_ variables below are injected automatically by GitLab - no setup needed.
+    ## CI_SERVER_URL   → PandaTools.GitLabUrl        (config server URL)
+    ## CI_PROJECT_ID   → PandaTools.GitLabProjectId  (flavour and defaults polling project)
+    ## CI_PROJECT_PATH → PandaTools.GitLabRepoPath   (e.g. service-delivery/pandatools)
+    ## CfgPlatform     → "gitlab" (config and flavours live on this GitLab instance)
     ##
     - dotnet publish PandaTools.csproj `
         --configuration Release `
@@ -70,9 +70,9 @@ build:
     paths:
       - PandaToolsSetup-v*.exe
     ##
-    ##1 day expiry - artifacts are only a bridge between build and release jobs.
-    ##The permanent copy lives in the GitLab Generic Packages registry.
-    ##Short expiry avoids accumulating storage on GitLab over time.
+    ## 1 day expiry - artifacts are only a bridge between build and release jobs.
+    ## The permanent copy lives in the GitLab Generic Packages registry.
+    ## Short expiry avoids accumulating storage on GitLab over time.
     ##
     expire_in: 1 day
   rules:
@@ -123,29 +123,35 @@ release:
       Write-Host "Found exe: $exeName ($((Get-Item $exeName).Length) bytes)"
 
       # ######################################
-      # GitLab: upload to Generic Packages API
-      # Stored permanently in package registry - not subject to artifact expiry
+      # GitLab: upload exe via Project Upload API
+      # Works on free tier - file is uploaded to the project and linked in the release
       # ######################################
-      $uploadUrl = "$apiBase/packages/generic/$packageName/$version/$exeName"
-      Write-Host "Uploading to GitLab packages: $uploadUrl"
+      Write-Host "Uploading $exeName to GitLab project uploads..."
 
       Add-Type -AssemblyName System.Net.Http
-      $client = [System.Net.Http.HttpClient]::new()
+      $client  = [System.Net.Http.HttpClient]::new()
       $client.Timeout = [System.TimeSpan]::FromMinutes(10)
       $client.DefaultRequestHeaders.Add("PRIVATE-TOKEN", $env:GITLAB_API_TOKEN)
-      $fs      = [System.IO.File]::OpenRead((Resolve-Path $exeName))
-      $content = [System.Net.Http.StreamContent]::new($fs)
-      $resp    = $client.PutAsync($uploadUrl, $content).GetAwaiter().GetResult()
-      $body    = $resp.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+
+      $multipart = [System.Net.Http.MultipartFormDataContent]::new()
+      $fs        = [System.IO.File]::OpenRead((Resolve-Path $exeName))
+      $fileContent = [System.Net.Http.StreamContent]::new($fs)
+      $fileContent.Headers.ContentType = [System.Net.Http.Headers.MediaTypeHeaderValue]::new("application/octet-stream")
+      $multipart.Add($fileContent, "file", $exeName)
+
+      $uploadResp = $client.PostAsync("$apiBase/uploads", $multipart).GetAwaiter().GetResult()
+      $uploadBody = $uploadResp.Content.ReadAsStringAsync().GetAwaiter().GetResult()
       $fs.Close()
       $client.Dispose()
 
-      Write-Host "GitLab upload status: $($resp.StatusCode)"
-      if (-not $resp.IsSuccessStatusCode) {
-        throw "GitLab upload failed: $($resp.StatusCode) - $body"
+      Write-Host "Upload status: $($uploadResp.StatusCode)"
+      if (-not $uploadResp.IsSuccessStatusCode) {
+        throw "Upload failed: $($uploadResp.StatusCode) - $uploadBody"
       }
 
-      $exeUrl = "$apiBase/packages/generic/$packageName/$version/$exeName"
+      $uploadResult = $uploadBody | ConvertFrom-Json
+      $exeUrl       = "$env:CI_PROJECT_URL$($uploadResult.url)"
+      Write-Host "Uploaded to: $exeUrl"
 
       # Delete existing GitLab release on this tag (handles reruns)
       try {
@@ -159,14 +165,23 @@ release:
         Write-Host "No existing GitLab release to delete - continuing"
       }
 
-      # Create GitLab release (no assets in body - attach separately to avoid Bad Request)
+      # Create release with asset link embedded - uses project upload URL (free tier compatible)
       $glPayload = @{
         tag_name    = $env:CI_COMMIT_TAG
         name        = "PandaTools $env:CI_COMMIT_TAG"
         description = $releaseNotes
-      } | ConvertTo-Json -Depth 3
+        assets      = @{
+          links = @(
+            @{
+              name      = $exeName
+              url       = $exeUrl
+              link_type = "other"
+            }
+          )
+        }
+      } | ConvertTo-Json -Depth 6
 
-      Invoke-RestMethod `
+      $release = Invoke-RestMethod `
         -Uri         "$apiBase/releases" `
         -Method      Post `
         -Headers     $headers `
@@ -174,22 +189,7 @@ release:
         -ContentType "application/json"
 
       Write-Host "GitLab release created: $env:CI_COMMIT_TAG"
-
-      # Attach installer asset link separately via release links API
-      $linkPayload = @{
-        name      = $exeName
-        url       = $exeUrl
-        link_type = "package"
-      } | ConvertTo-Json -Depth 2
-
-      Invoke-RestMethod `
-        -Uri         "$apiBase/releases/$($env:CI_COMMIT_TAG)/assets/links" `
-        -Method      Post `
-        -Headers     $headers `
-        -Body        $linkPayload `
-        -ContentType "application/json"
-
-      Write-Host "Asset link attached: $exeUrl"
+      Write-Host "Download: $exeUrl"
 
 
   rules:
