@@ -3,7 +3,7 @@ stages:
   - release
 
 variables:
-  APP_VERSION: "3.0.0"
+  APP_VERSION: "3.0.0"   
   PROJECT_NAME: "PandaTools"
 
 build:
@@ -13,14 +13,20 @@ build:
   script:
     - $env:PATH = "C:\Program Files\dotnet;$env:PATH"
 
+    ##
+    ## Derive version from git tag if present, otherwise fall back to APP_VERSION
+    ##
+    - $version = if ($env:CI_COMMIT_TAG) { $env:CI_COMMIT_TAG.TrimStart("v") } else { $env:APP_VERSION }
+    - Write-Host "Building version: $version"
+
     - dotnet restore PandaTools.csproj
 
     ##
-    ## CI_SERVER_URL  → baked into the binary as PandaTools.GitLabUrl
-    ## CI_PROJECT_ID  → baked in as PandaTools.GitLabProjectId (used for both flavour and app update checks)
-    ## CI_PROJECT_PATH → baked in as PandaTools.GitLabRepoPath (e.g. service-delivery/pandatools)
-    ## These become first-run defaults in AppConfig when no config.json exists yet.
-    ## On a public/local build these properties are empty
+    ## CI_SERVER_URL    → PandaTools.GitLabUrl        (config server URL)
+    ## CI_PROJECT_ID    → PandaTools.GitLabProjectId  (flavour and defaults polling project)
+    ## CI_PROJECT_PATH  → PandaTools.GitLabRepoPath   (e.g. service-delivery/pandatools)
+    ## CfgPlatform      → "gitlab" (config and flavours live on this GitLab instance)
+    ## All CI_ variables are injected automatically by GitLab - no setup needed.
     ##
     - dotnet publish PandaTools.csproj `
         --configuration Release `
@@ -30,10 +36,13 @@ build:
         -p:IncludeNativeLibrariesForSelfExtract=true `
         -p:DebugType=none `
         -p:DebugSymbols=false `
-        -p:Version=$env:APP_VERSION `
+        -p:Version=$version `
         -p:GitLabUrl=$env:CI_SERVER_URL `
         -p:GitLabProjectId=$env:CI_PROJECT_ID `
         -p:GitLabRepoPath=$env:CI_PROJECT_PATH `
+        -p:CfgPlatform="gitlab" `
+        -p:CfgRepoOwner="" `
+        -p:CfgRepoName="" `
         --output ./payload_staging
 
     - if (Test-Path "PandaTools.Setup/Payload") { Remove-Item "PandaTools.Setup/Payload" -Recurse -Force }
@@ -49,16 +58,22 @@ build:
         -p:IncludeNativeLibrariesForSelfExtract=true `
         -p:DebugType=none `
         -p:DebugSymbols=false `
-        -p:Version=$env:APP_VERSION `
+        -p:Version=$version `
         --output ./installer_out
 
-    - Move-Item -Path "./installer_out/PandaToolsSetup.exe" -Destination "./PandaToolsSetup-$($env:CI_COMMIT_TAG).exe" -Force
+    - $exeName = "PandaToolsSetup-$($env:CI_COMMIT_TAG ?? "v$version").exe"
+    - Move-Item -Path "./installer_out/PandaToolsSetup.exe" -Destination "./$exeName" -Force
+    - Write-Host "Installer: $exeName ($((Get-Item $exeName).Length) bytes)"
 
   artifacts:
     name: "${PROJECT_NAME}-Setup-${CI_COMMIT_TAG}"
     paths:
       - PandaToolsSetup-v*.exe
-    expire_in: 45 days
+    ##
+    ## 1 day expiry - artifacts are only a bridge between build and release jobs.
+    ## The permanent copy lives in the GitLab Generic Packages registry.
+    ##
+    expire_in: 1 day
   rules:
     - if: $CI_COMMIT_TAG
 
@@ -168,7 +183,7 @@ release:
       # Storage cleanup - keep only the 3 most recent releases
       # Deletes older releases AND their associated package files
       # ######################################
-      $keepCount = 3
+      $keepCount   = 3
       $allReleases = Invoke-RestMethod `
         -Uri     "$apiBase/releases?per_page=100&sort=desc" `
         -Headers $headers
