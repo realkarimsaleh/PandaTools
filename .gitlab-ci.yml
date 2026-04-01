@@ -11,16 +11,15 @@ build:
   tags:
     - windows
   script:
-    - $env:PATH = "C:\Program Files\dotnet;$env:PATH"
+    - |
+      $env:PATH = "C:\Program Files\dotnet;$env:PATH"
 
-    # Derive version from git tag if present, otherwise fall back to APP_VERSION
-    - $version = if ($env:CI_COMMIT_TAG) { $env:CI_COMMIT_TAG.TrimStart("v") } else { $env:APP_VERSION }
-    - Write-Host "Building version: $version"
+      $version = if ($env:CI_COMMIT_TAG) { $env:CI_COMMIT_TAG.TrimStart("v") } else { $env:APP_VERSION }
+      Write-Host "Building version: $version"
 
-    - dotnet restore PandaTools.csproj
+      dotnet restore PandaTools.csproj
 
-    # CI_ variables are injected automatically by GitLab - no setup needed
-    - dotnet publish PandaTools.csproj `
+      dotnet publish PandaTools.csproj `
         --configuration Release `
         --runtime win-x64 `
         --self-contained true `
@@ -37,12 +36,13 @@ build:
         -p:CfgRepoName="" `
         --output ./payload_staging
 
-    - if (Test-Path "PandaTools.Setup/Payload") { Remove-Item "PandaTools.Setup/Payload" -Recurse -Force }
-    - New-Item -ItemType Directory -Path "PandaTools.Setup/Payload" | Out-Null
-    - Compress-Archive -Path "./payload_staging/*" -DestinationPath "./PandaTools.Setup/Payload/payload.zip" -Force
+      if (Test-Path "PandaTools.Setup/Payload") { Remove-Item "PandaTools.Setup/Payload" -Recurse -Force }
+      New-Item -ItemType Directory -Path "PandaTools.Setup/Payload" | Out-Null
+      Compress-Archive -Path "./payload_staging/*" -DestinationPath "./PandaTools.Setup/Payload/payload.zip" -Force
 
-    - dotnet restore PandaTools.Setup/PandaTools.Setup.csproj
-    - dotnet publish PandaTools.Setup/PandaTools.Setup.csproj `
+      dotnet restore PandaTools.Setup/PandaTools.Setup.csproj
+
+      dotnet publish PandaTools.Setup/PandaTools.Setup.csproj `
         --configuration Release `
         --runtime win-x64 `
         --self-contained true `
@@ -53,15 +53,14 @@ build:
         -p:Version=$version `
         --output ./installer_out
 
-    - $exeName = if ($env:CI_COMMIT_TAG) { "PandaToolsSetup-$($env:CI_COMMIT_TAG).exe" } else { "PandaToolsSetup-v$version.exe" }
-    - Move-Item -Path "./installer_out/PandaToolsSetup.exe" -Destination "./$exeName" -Force
-    - Write-Host "Installer: $exeName ($((Get-Item $exeName).Length) bytes)"
+      $exeName = if ($env:CI_COMMIT_TAG) { "PandaToolsSetup-$($env:CI_COMMIT_TAG).exe" } else { "PandaToolsSetup-v$version.exe" }
+      Move-Item -Path "./installer_out/PandaToolsSetup.exe" -Destination "./$exeName" -Force
+      Write-Host "Installer: $exeName ($((Get-Item $exeName).Length) bytes)"
 
   artifacts:
     name: "${PROJECT_NAME}-Setup-${CI_COMMIT_TAG}"
     paths:
       - PandaToolsSetup-v*.exe
-    # 1 day expiry - artifacts bridge build to release only; permanent copy is in Generic Packages
     expire_in: 1 day
   rules:
     - if: $CI_COMMIT_TAG
@@ -89,7 +88,6 @@ release:
       Write-Host "Tag:         $env:CI_COMMIT_TAG"
       Write-Host "Exe:         $exeName"
 
-      # Parse CHANGELOG.md for latest version notes
       $lines = Get-Content CHANGELOG.md
       $capture = $false
       $notes = @()
@@ -103,14 +101,12 @@ release:
       $releaseNotes = ($notes -join "`n").Trim()
       if (-not $releaseNotes) { $releaseNotes = "Release $env:CI_COMMIT_TAG" }
 
-      # Verify exe exists
       if (-not (Test-Path $exeName)) {
         Get-ChildItem | Select-Object Name, Length
         throw "EXE not found: $exeName"
       }
       Write-Host "Found exe: $exeName ($((Get-Item $exeName).Length) bytes)"
 
-      # Upload via Generic Packages API (no file size limit)
       $uploadUrl = "$apiBase/packages/generic/$packageName/$version/$exeName"
       Write-Host "Uploading to: $uploadUrl"
 
@@ -132,7 +128,6 @@ release:
 
       $exeUrl = "$apiBase/packages/generic/$packageName/$version/$exeName"
 
-      # Delete existing release if present (handles reruns on the same tag)
       try {
         Invoke-RestMethod `
           -Uri     "$apiBase/releases/$($env:CI_COMMIT_TAG)" `
@@ -144,7 +139,6 @@ release:
         Write-Host "No existing release to delete - continuing"
       }
 
-      # Create the release with exe linked from package registry
       $payload = @{
         tag_name    = $env:CI_COMMIT_TAG
         name        = "PandaTools $env:CI_COMMIT_TAG"
@@ -168,10 +162,6 @@ release:
       Write-Host "Release $env:CI_COMMIT_TAG created successfully."
       Write-Host "Download: $exeUrl"
 
-      # ######################################
-      # Storage cleanup - keep only the 3 most recent releases
-      # Deletes older releases AND their associated package files
-      # ######################################
       $keepCount   = 3
       $allReleases = Invoke-RestMethod `
         -Uri     "$apiBase/releases?per_page=100&sort=desc" `
@@ -183,7 +173,6 @@ release:
           $oldTag     = $old.tag_name
           $oldVersion = $oldTag.TrimStart("v")
 
-          # Delete the release
           try {
             Invoke-RestMethod `
               -Uri     "$apiBase/releases/$oldTag" `
@@ -195,7 +184,6 @@ release:
             Write-Host "Could not delete release $oldTag - $($_.Exception.Message)"
           }
 
-          # Delete the associated package from the registry to free storage
           try {
             $pkg = Invoke-RestMethod `
               -Uri     "$apiBase/packages?package_name=$packageName&package_version=$oldVersion" `
