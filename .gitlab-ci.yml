@@ -11,16 +11,10 @@ build:
   tags:
     - windows
   script:
-    - '$env:PATH = "C:\Program Files\dotnet;$env:PATH"'
-
-    # WRAPPED IN SINGLE QUOTES to stop YAML from reading the {} as a dictionary
-    - '$cleanVersion = if ($env:CI_COMMIT_TAG) { $env:CI_COMMIT_TAG.TrimStart("v") } else { $env:APP_VERSION }'
-    - Write-Host "Clean version for build: $cleanVersion"
+    - $env:PATH = "C:\Program Files\dotnet;$env:PATH"
 
     - dotnet restore PandaTools.csproj
-
-    - |
-      dotnet publish PandaTools.csproj `
+    - dotnet publish PandaTools.csproj `
         --configuration Release `
         --runtime win-x64 `
         --self-contained true `
@@ -28,21 +22,15 @@ build:
         -p:IncludeNativeLibrariesForSelfExtract=true `
         -p:DebugType=none `
         -p:DebugSymbols=false `
-        -p:Version=$cleanVersion `
-        -p:GitLabUrl=$env:CI_SERVER_URL `
-        -p:GitLabProjectId=$env:CI_PROJECT_ID `
-        -p:GitLabRepoPath=$env:CI_PROJECT_PATH `
+        -p:Version=$env:APP_VERSION `
         --output ./payload_staging
 
-    # WRAPPED IN SINGLE QUOTES to stop YAML from reading the {} as a dictionary
-    - 'if (Test-Path "PandaTools.Setup/Payload") { Remove-Item "PandaTools.Setup/Payload" -Recurse -Force }'
+    - if (Test-Path "PandaTools.Setup/Payload") { Remove-Item "PandaTools.Setup/Payload" -Recurse -Force }
     - New-Item -ItemType Directory -Path "PandaTools.Setup/Payload" | Out-Null
     - Compress-Archive -Path "./payload_staging/*" -DestinationPath "./PandaTools.Setup/Payload/payload.zip" -Force
 
     - dotnet restore PandaTools.Setup/PandaTools.Setup.csproj
-    
-    - |
-      dotnet publish PandaTools.Setup/PandaTools.Setup.csproj `
+    - dotnet publish PandaTools.Setup/PandaTools.Setup.csproj `
         --configuration Release `
         --runtime win-x64 `
         --self-contained true `
@@ -50,13 +38,10 @@ build:
         -p:IncludeNativeLibrariesForSelfExtract=true `
         -p:DebugType=none `
         -p:DebugSymbols=false `
-        -p:Version=$cleanVersion `
+        -p:Version=$env:APP_VERSION `
         --output ./installer_out
 
-    # WRAPPED IN SINGLE QUOTES
-    - '$exeName = "PandaToolsSetup-v$cleanVersion.exe"'
-    - Move-Item -Path "./installer_out/PandaToolsSetup.exe" -Destination "./$exeName" -Force
-    - Write-Host "Created Installer: $exeName"
+    - Move-Item -Path "./installer_out/PandaToolsSetup.exe" -Destination "./PandaToolsSetup-$($env:CI_COMMIT_TAG).exe" -Force
 
   artifacts:
     name: "${PROJECT_NAME}-Setup-${CI_COMMIT_TAG}"
@@ -79,16 +64,15 @@ release:
         throw "GITLAB_API_TOKEN is not set or not visible to this job."
       }
 
-      $headers      = @{ "PRIVATE-TOKEN" = $env:GITLAB_API_TOKEN }
-      $apiBase      = "$env:CI_API_V4_URL/projects/$env:CI_PROJECT_ID"
-      
-      $cleanVersion = $env:CI_COMMIT_TAG.TrimStart("v")
-      $exeName      = "PandaToolsSetup-v$cleanVersion.exe"
-      $packageName  = "pandatools-installer"
+      $headers     = @{ "PRIVATE-TOKEN" = $env:GITLAB_API_TOKEN }
+      $apiBase     = "$env:CI_API_V4_URL/projects/$env:CI_PROJECT_ID"
+      $exeName     = "PandaToolsSetup-$($env:CI_COMMIT_TAG).exe"
+      $packageName = "pandatools-installer"
+      $version     = $env:CI_COMMIT_TAG.TrimStart("v")
 
       Write-Host "API Base:    $apiBase"
       Write-Host "Tag:         $env:CI_COMMIT_TAG"
-      Write-Host "Exe target:  $exeName"
+      Write-Host "Exe:         $exeName"
 
       # Parse CHANGELOG.md for latest version notes
       $lines = Get-Content CHANGELOG.md
@@ -107,12 +91,12 @@ release:
       # Verify exe exists
       if (-not (Test-Path $exeName)) {
         Get-ChildItem | Select-Object Name, Length
-        throw "EXE not found: $exeName. Check if the artifact was passed correctly."
+        throw "EXE not found: $exeName"
       }
       Write-Host "Found exe: $exeName ($((Get-Item $exeName).Length) bytes)"
 
-      # Upload via Generic Packages API
-      $uploadUrl = "$apiBase/packages/generic/$packageName/$cleanVersion/$exeName"
+      # Upload via Generic Packages API (no file size limit)
+      $uploadUrl = "$apiBase/packages/generic/$packageName/$version/$exeName"
       Write-Host "Uploading to: $uploadUrl"
 
       Add-Type -AssemblyName System.Net.Http
@@ -131,9 +115,9 @@ release:
         throw "Upload failed: $($resp.StatusCode) - $body"
       }
 
-      $exeUrl = "$apiBase/packages/generic/$packageName/$cleanVersion/$exeName"
+      $exeUrl = "$apiBase/packages/generic/$packageName/$version/$exeName"
 
-      # Delete existing release if present
+      # Delete existing release if present (handles reruns on the same tag)
       try {
         Invoke-RestMethod `
           -Uri     "$apiBase/releases/$($env:CI_COMMIT_TAG)" `
@@ -142,7 +126,7 @@ release:
           -ErrorAction Stop
         Write-Host "Deleted existing release $env:CI_COMMIT_TAG"
       } catch {
-        Write-Host "No existing release to delete - continuing"
+        Write-Host "No existing release to delete — continuing"
       }
 
       # Create the release with exe linked from package registry
@@ -154,7 +138,6 @@ release:
           links = @(@{
             name      = $exeName
             url       = $exeUrl
-            filepath  = "/$exeName" 
             link_type = "package"
           })
         }
@@ -169,32 +152,5 @@ release:
 
       Write-Host "Release $env:CI_COMMIT_TAG created successfully."
       Write-Host "Download: $exeUrl"
-      
-      # Storage cleanup (Keeps 3 newest releases, deletes the rest)
-      $keepCount   = 3
-      $allReleases = Invoke-RestMethod `
-        -Uri     "$apiBase/releases?per_page=100&sort=desc" `
-        -Headers $headers
-
-      if ($allReleases.Count -gt $keepCount) {
-        $toDelete = $allReleases | Select-Object -Skip $keepCount
-        foreach ($old in $toDelete) {
-          $oldTag     = $old.tag_name
-          $oldVersion = $oldTag.TrimStart("v")
-
-          try {
-            Invoke-RestMethod -Uri "$apiBase/releases/$oldTag" -Method Delete -Headers $headers -ErrorAction Stop
-            Write-Host "Deleted old release: $oldTag"
-          } catch { Write-Host "Could not delete release $oldTag" }
-
-          try {
-            $pkg = Invoke-RestMethod -Uri "$apiBase/packages?package_name=$packageName&package_version=$oldVersion" -Headers $headers -ErrorAction Stop
-            if ($pkg.Count -gt 0) {
-              Invoke-RestMethod -Uri "$apiBase/packages/$($pkg[0].id)" -Method Delete -Headers $headers -ErrorAction Stop
-              Write-Host "Deleted old package: $packageName $oldVersion"
-            }
-          } catch { Write-Host "Could not delete package $oldVersion" }
-        }
-      }
   rules:
     - if: $CI_COMMIT_TAG
