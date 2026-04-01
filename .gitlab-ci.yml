@@ -13,16 +13,14 @@ build:
   script:
     - $env:PATH = "C:\Program Files\dotnet;$env:PATH"
 
+    # 1. ALWAYS get a clean version number (e.g., "3.0.0" whether tagged "v3.0.0" or "3.0.0")
+    - $cleanVersion = if ($env:CI_COMMIT_TAG) { $env:CI_COMMIT_TAG.TrimStart("v") } else { $env:APP_VERSION }
+    - Write-Host "Clean version for build: $cleanVersion"
+
     - dotnet restore PandaTools.csproj
 
-    ##
-    ## CI_SERVER_URL  → baked into the binary as PandaTools.GitLabUrl
-    ## CI_PROJECT_ID  → baked in as PandaTools.GitLabProjectId (used for both flavour and app update checks)
-    ## CI_PROJECT_PATH → baked in as PandaTools.GitLabRepoPath (e.g. service-delivery/pandatools)
-    ## These become first-run defaults in AppConfig when no config.json exists yet.
-    ## On a public/local build these properties are empty - no LBU values ship by default.
-    ##
-    - dotnet publish PandaTools.csproj `
+    - |
+      dotnet publish PandaTools.csproj `
         --configuration Release `
         --runtime win-x64 `
         --self-contained true `
@@ -30,7 +28,7 @@ build:
         -p:IncludeNativeLibrariesForSelfExtract=true `
         -p:DebugType=none `
         -p:DebugSymbols=false `
-        -p:Version=$env:APP_VERSION `
+        -p:Version=$cleanVersion `
         -p:GitLabUrl=$env:CI_SERVER_URL `
         -p:GitLabProjectId=$env:CI_PROJECT_ID `
         -p:GitLabRepoPath=$env:CI_PROJECT_PATH `
@@ -41,7 +39,9 @@ build:
     - Compress-Archive -Path "./payload_staging/*" -DestinationPath "./PandaTools.Setup/Payload/payload.zip" -Force
 
     - dotnet restore PandaTools.Setup/PandaTools.Setup.csproj
-    - dotnet publish PandaTools.Setup/PandaTools.Setup.csproj `
+    
+    - |
+      dotnet publish PandaTools.Setup/PandaTools.Setup.csproj `
         --configuration Release `
         --runtime win-x64 `
         --self-contained true `
@@ -49,14 +49,18 @@ build:
         -p:IncludeNativeLibrariesForSelfExtract=true `
         -p:DebugType=none `
         -p:DebugSymbols=false `
-        -p:Version=$env:APP_VERSION `
+        -p:Version=$cleanVersion `
         --output ./installer_out
 
-    - Move-Item -Path "./installer_out/PandaToolsSetup.exe" -Destination "./PandaToolsSetup-$($env:CI_COMMIT_TAG).exe" -Force
+    # 2. FORCE the 'v' right here when naming the file
+    - $exeName = "PandaToolsSetup-v$cleanVersion.exe"
+    - Move-Item -Path "./installer_out/PandaToolsSetup.exe" -Destination "./$exeName" -Force
+    - Write-Host "Created Installer: $exeName"
 
   artifacts:
     name: "${PROJECT_NAME}-Setup-${CI_COMMIT_TAG}"
     paths:
+      # 3. We can safely go back to explicitly looking for the 'v'
       - PandaToolsSetup-v*.exe
     expire_in: 90 days
   rules:
@@ -75,15 +79,18 @@ release:
         throw "GITLAB_API_TOKEN is not set or not visible to this job."
       }
 
-      $headers     = @{ "PRIVATE-TOKEN" = $env:GITLAB_API_TOKEN }
-      $apiBase     = "$env:CI_API_V4_URL/projects/$env:CI_PROJECT_ID"
-      $exeName     = "PandaToolsSetup-$($env:CI_COMMIT_TAG).exe"
-      $packageName = "pandatools-installer"
-      $version     = $env:CI_COMMIT_TAG.TrimStart("v")
+      $headers      = @{ "PRIVATE-TOKEN" = $env:GITLAB_API_TOKEN }
+      $apiBase      = "$env:CI_API_V4_URL/projects/$env:CI_PROJECT_ID"
+      
+      # 4. Strip the 'v' from the tag if it exists, then force our own 'v' onto the exe name
+      $cleanVersion = $env:CI_COMMIT_TAG.TrimStart("v")
+      $exeName      = "PandaToolsSetup-v$cleanVersion.exe"
+      
+      $packageName  = "pandatools-installer"
 
       Write-Host "API Base:    $apiBase"
       Write-Host "Tag:         $env:CI_COMMIT_TAG"
-      Write-Host "Exe:         $exeName"
+      Write-Host "Exe target:  $exeName"
 
       # Parse CHANGELOG.md for latest version notes
       $lines = Get-Content CHANGELOG.md
@@ -102,12 +109,12 @@ release:
       # Verify exe exists
       if (-not (Test-Path $exeName)) {
         Get-ChildItem | Select-Object Name, Length
-        throw "EXE not found: $exeName"
+        throw "EXE not found: $exeName. Check if the artifact was passed correctly."
       }
       Write-Host "Found exe: $exeName ($((Get-Item $exeName).Length) bytes)"
 
-      # Upload via Generic Packages API (no file size limit)
-      $uploadUrl = "$apiBase/packages/generic/$packageName/$version/$exeName"
+      # Upload via Generic Packages API
+      $uploadUrl = "$apiBase/packages/generic/$packageName/$cleanVersion/$exeName"
       Write-Host "Uploading to: $uploadUrl"
 
       Add-Type -AssemblyName System.Net.Http
@@ -126,9 +133,9 @@ release:
         throw "Upload failed: $($resp.StatusCode) - $body"
       }
 
-      $exeUrl = "$apiBase/packages/generic/$packageName/$version/$exeName"
+      $exeUrl = "$apiBase/packages/generic/$packageName/$cleanVersion/$exeName"
 
-      # Delete existing release if present (handles reruns on the same tag)
+      # Delete existing release if present
       try {
         Invoke-RestMethod `
           -Uri     "$apiBase/releases/$($env:CI_COMMIT_TAG)" `
@@ -149,6 +156,7 @@ release:
           links = @(@{
             name      = $exeName
             url       = $exeUrl
+            filepath  = "/$exeName" 
             link_type = "package"
           })
         }
