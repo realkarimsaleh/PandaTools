@@ -13,20 +13,14 @@ build:
   script:
     - $env:PATH = "C:\Program Files\dotnet;$env:PATH"
 
-    ##
-    ## Derive version from git tag if present, otherwise fall back to APP_VERSION
-    ##
-    - $version = if ($env:CI_COMMIT_TAG) { $env:CI_COMMIT_TAG.TrimStart("v") } else { $env:APP_VERSION }
-    - Write-Host "Building version: $version"
-
     - dotnet restore PandaTools.csproj
 
     ##
-    ## All CI_ variables below are injected automatically by GitLab - no setup needed.
-    ## CI_SERVER_URL   → PandaTools.GitLabUrl        (config server URL)
-    ## CI_PROJECT_ID   → PandaTools.GitLabProjectId  (flavour and defaults polling project)
-    ## CI_PROJECT_PATH → PandaTools.GitLabRepoPath   (e.g. service-delivery/pandatools)
-    ## CfgPlatform     → "gitlab" (config and flavours live on this GitLab instance)
+    ## CI_SERVER_URL  → baked into the binary as PandaTools.GitLabUrl
+    ## CI_PROJECT_ID  → baked in as PandaTools.GitLabProjectId (used for both flavour and app update checks)
+    ## CI_PROJECT_PATH → baked in as PandaTools.GitLabRepoPath (e.g. service-delivery/pandatools)
+    ## These become first-run defaults in AppConfig when no config.json exists yet.
+    ## On a public/local build these properties are empty
     ##
     - dotnet publish PandaTools.csproj `
         --configuration Release `
@@ -36,13 +30,10 @@ build:
         -p:IncludeNativeLibrariesForSelfExtract=true `
         -p:DebugType=none `
         -p:DebugSymbols=false `
-        -p:Version=$version `
+        -p:Version=$env:APP_VERSION `
         -p:GitLabUrl=$env:CI_SERVER_URL `
         -p:GitLabProjectId=$env:CI_PROJECT_ID `
         -p:GitLabRepoPath=$env:CI_PROJECT_PATH `
-        -p:CfgPlatform="gitlab" `
-        -p:CfgRepoOwner="" `
-        -p:CfgRepoName="" `
         --output ./payload_staging
 
     - if (Test-Path "PandaTools.Setup/Payload") { Remove-Item "PandaTools.Setup/Payload" -Recurse -Force }
@@ -58,23 +49,16 @@ build:
         -p:IncludeNativeLibrariesForSelfExtract=true `
         -p:DebugType=none `
         -p:DebugSymbols=false `
-        -p:Version=$version `
+        -p:Version=$env:APP_VERSION `
         --output ./installer_out
 
-    - $exeName = "PandaToolsSetup-$($env:CI_COMMIT_TAG ?? "v$version").exe"
-    - Move-Item -Path "./installer_out/PandaToolsSetup.exe" -Destination "./$exeName" -Force
-    - Write-Host "Installer: $exeName ($((Get-Item $exeName).Length) bytes)"
+    - Move-Item -Path "./installer_out/PandaToolsSetup.exe" -Destination "./PandaToolsSetup-$($env:CI_COMMIT_TAG).exe" -Force
 
   artifacts:
     name: "${PROJECT_NAME}-Setup-${CI_COMMIT_TAG}"
     paths:
       - PandaToolsSetup-v*.exe
-    ##
-    ## 1 day expiry - artifacts are only a bridge between build and release jobs.
-    ## The permanent copy lives in the GitLab Generic Packages registry.
-    ## Short expiry avoids accumulating storage on GitLab over time.
-    ##
-    expire_in: 1 day
+    expire_in: 45 days
   rules:
     - if: $CI_COMMIT_TAG
 
@@ -93,15 +77,15 @@ release:
 
       $headers     = @{ "PRIVATE-TOKEN" = $env:GITLAB_API_TOKEN }
       $apiBase     = "$env:CI_API_V4_URL/projects/$env:CI_PROJECT_ID"
-      $version     = $env:CI_COMMIT_TAG.TrimStart("v")
       $exeName     = "PandaToolsSetup-$($env:CI_COMMIT_TAG).exe"
       $packageName = "pandatools-installer"
+      $version     = $env:CI_COMMIT_TAG.TrimStart("v")
 
-      Write-Host "API Base: $apiBase"
-      Write-Host "Tag:      $env:CI_COMMIT_TAG"
-      Write-Host "Exe:      $exeName"
+      Write-Host "API Base:    $apiBase"
+      Write-Host "Tag:         $env:CI_COMMIT_TAG"
+      Write-Host "Exe:         $exeName"
 
-      # Parse CHANGELOG.md for the latest version notes
+      # Parse CHANGELOG.md for latest version notes
       $lines = Get-Content CHANGELOG.md
       $capture = $false
       $notes = @()
@@ -122,75 +106,111 @@ release:
       }
       Write-Host "Found exe: $exeName ($((Get-Item $exeName).Length) bytes)"
 
-      # ######################################
-      # GitLab: upload exe via Project Upload API
-      # Works on free tier - file is uploaded to the project and linked in the release
-      # ######################################
-      Write-Host "Uploading $exeName to GitLab project uploads..."
+      # Upload via Generic Packages API (no file size limit)
+      $uploadUrl = "$apiBase/packages/generic/$packageName/$version/$exeName"
+      Write-Host "Uploading to: $uploadUrl"
 
       Add-Type -AssemblyName System.Net.Http
-      $client  = [System.Net.Http.HttpClient]::new()
+      $client = [System.Net.Http.HttpClient]::new()
       $client.Timeout = [System.TimeSpan]::FromMinutes(10)
       $client.DefaultRequestHeaders.Add("PRIVATE-TOKEN", $env:GITLAB_API_TOKEN)
-
-      $multipart = [System.Net.Http.MultipartFormDataContent]::new()
-      $fs        = [System.IO.File]::OpenRead((Resolve-Path $exeName))
-      $fileContent = [System.Net.Http.StreamContent]::new($fs)
-      $fileContent.Headers.ContentType = [System.Net.Http.Headers.MediaTypeHeaderValue]::new("application/octet-stream")
-      $multipart.Add($fileContent, "file", $exeName)
-
-      $uploadResp = $client.PostAsync("$apiBase/uploads", $multipart).GetAwaiter().GetResult()
-      $uploadBody = $uploadResp.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+      $fs      = [System.IO.File]::OpenRead((Resolve-Path $exeName))
+      $content = [System.Net.Http.StreamContent]::new($fs)
+      $resp    = $client.PutAsync($uploadUrl, $content).GetAwaiter().GetResult()
+      $body    = $resp.Content.ReadAsStringAsync().GetAwaiter().GetResult()
       $fs.Close()
       $client.Dispose()
 
-      Write-Host "Upload status: $($uploadResp.StatusCode)"
-      if (-not $uploadResp.IsSuccessStatusCode) {
-        throw "Upload failed: $($uploadResp.StatusCode) - $uploadBody"
+      Write-Host "Upload status: $($resp.StatusCode)"
+      if (-not $resp.IsSuccessStatusCode) {
+        throw "Upload failed: $($resp.StatusCode) - $body"
       }
 
-      $uploadResult = $uploadBody | ConvertFrom-Json
-      $exeUrl       = "$env:CI_PROJECT_URL$($uploadResult.url)"
-      Write-Host "Uploaded to: $exeUrl"
+      $exeUrl = "$apiBase/packages/generic/$packageName/$version/$exeName"
 
-      # Delete existing GitLab release on this tag (handles reruns)
+      # Delete existing release if present (handles reruns on the same tag)
       try {
         Invoke-RestMethod `
-          -Uri         "$apiBase/releases/$($env:CI_COMMIT_TAG)" `
-          -Method      Delete `
-          -Headers     $headers `
+          -Uri     "$apiBase/releases/$($env:CI_COMMIT_TAG)" `
+          -Method  Delete `
+          -Headers $headers `
           -ErrorAction Stop
-        Write-Host "Deleted existing GitLab release $env:CI_COMMIT_TAG"
+        Write-Host "Deleted existing release $env:CI_COMMIT_TAG"
       } catch {
-        Write-Host "No existing GitLab release to delete - continuing"
+        Write-Host "No existing release to delete - continuing"
       }
 
-      # Create release with asset link embedded - uses project upload URL (free tier compatible)
-      $glPayload = @{
+      # Create the release with exe linked from package registry
+      $payload = @{
         tag_name    = $env:CI_COMMIT_TAG
         name        = "PandaTools $env:CI_COMMIT_TAG"
         description = $releaseNotes
         assets      = @{
-          links = @(
-            @{
-              name      = $exeName
-              url       = $exeUrl
-              link_type = "other"
-            }
-          )
+          links = @(@{
+            name      = $exeName
+            url       = $exeUrl
+            link_type = "package"
+          })
         }
-      } | ConvertTo-Json -Depth 6
+      } | ConvertTo-Json -Depth 5
 
-      $release = Invoke-RestMethod `
+      Invoke-RestMethod `
         -Uri         "$apiBase/releases" `
         -Method      Post `
         -Headers     $headers `
-        -Body        $glPayload `
+        -Body        $payload `
         -ContentType "application/json"
 
-      Write-Host "GitLab release created: $env:CI_COMMIT_TAG"
+      Write-Host "Release $env:CI_COMMIT_TAG created successfully."
       Write-Host "Download: $exeUrl"
 
+      # ######################################
+      # Storage cleanup - keep only the 3 most recent releases
+      # Deletes older releases AND their associated package files
+      # ######################################
+      $keepCount = 3
+      $allReleases = Invoke-RestMethod `
+        -Uri     "$apiBase/releases?per_page=100&sort=desc" `
+        -Headers $headers
 
+      if ($allReleases.Count -gt $keepCount) {
+        $toDelete = $allReleases | Select-Object -Skip $keepCount
+        foreach ($old in $toDelete) {
+          $oldTag     = $old.tag_name
+          $oldVersion = $oldTag.TrimStart("v")
+
+          # Delete the release
+          try {
+            Invoke-RestMethod `
+              -Uri     "$apiBase/releases/$oldTag" `
+              -Method  Delete `
+              -Headers $headers `
+              -ErrorAction Stop
+            Write-Host "Deleted old release: $oldTag"
+          } catch {
+            Write-Host "Could not delete release $oldTag - $($_.Exception.Message)"
+          }
+
+          # Delete the associated package from the registry to free storage
+          try {
+            $pkg = Invoke-RestMethod `
+              -Uri     "$apiBase/packages?package_name=$packageName&package_version=$oldVersion" `
+              -Headers $headers `
+              -ErrorAction Stop
+            if ($pkg.Count -gt 0) {
+              Invoke-RestMethod `
+                -Uri     "$apiBase/packages/$($pkg[0].id)" `
+                -Method  Delete `
+                -Headers $headers `
+                -ErrorAction Stop
+              Write-Host "Deleted old package: $packageName $oldVersion"
+            }
+          } catch {
+            Write-Host "Could not delete package $oldVersion - $($_.Exception.Message)"
+          }
+        }
+      } else {
+        Write-Host "Only $($allReleases.Count) release(s) exist - no cleanup needed"
+      }
   rules:
     - if: $CI_COMMIT_TAG
