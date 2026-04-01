@@ -3,7 +3,7 @@ stages:
   - release
 
 variables:
-  APP_VERSION: "3.0.0"   
+  APP_VERSION: "3.0.0"
   PROJECT_NAME: "PandaTools"
 
 build:
@@ -13,21 +13,13 @@ build:
   script:
     - $env:PATH = "C:\Program Files\dotnet;$env:PATH"
 
-    ##
-    ## Derive version from git tag if present, otherwise fall back to APP_VERSION
-    ##
+    # Derive version from git tag if present, otherwise fall back to APP_VERSION
     - $version = if ($env:CI_COMMIT_TAG) { $env:CI_COMMIT_TAG.TrimStart("v") } else { $env:APP_VERSION }
     - Write-Host "Building version: $version"
 
     - dotnet restore PandaTools.csproj
 
-    ##
-    ## CI_SERVER_URL    → PandaTools.GitLabUrl        (config server URL)
-    ## CI_PROJECT_ID    → PandaTools.GitLabProjectId  (flavour and defaults polling project)
-    ## CI_PROJECT_PATH  → PandaTools.GitLabRepoPath   (e.g. service-delivery/pandatools)
-    ## CfgPlatform      → "gitlab" (config and flavours live on this GitLab instance)
-    ## All CI_ variables are injected automatically by GitLab - no setup needed.
-    ##
+    # CI_ variables are injected automatically by GitLab - no setup needed
     - dotnet publish PandaTools.csproj `
         --configuration Release `
         --runtime win-x64 `
@@ -61,7 +53,7 @@ build:
         -p:Version=$version `
         --output ./installer_out
 
-    - $exeName = "PandaToolsSetup-$($env:CI_COMMIT_TAG ?? "v$version").exe"
+    - $exeName = if ($env:CI_COMMIT_TAG) { "PandaToolsSetup-$($env:CI_COMMIT_TAG).exe" } else { "PandaToolsSetup-v$version.exe" }
     - Move-Item -Path "./installer_out/PandaToolsSetup.exe" -Destination "./$exeName" -Force
     - Write-Host "Installer: $exeName ($((Get-Item $exeName).Length) bytes)"
 
@@ -69,10 +61,7 @@ build:
     name: "${PROJECT_NAME}-Setup-${CI_COMMIT_TAG}"
     paths:
       - PandaToolsSetup-v*.exe
-    ##
-    ## 1 day expiry - artifacts are only a bridge between build and release jobs.
-    ## The permanent copy lives in the GitLab Generic Packages registry.
-    ##
+    # 1 day expiry - artifacts bridge build to release only; permanent copy is in Generic Packages
     expire_in: 1 day
   rules:
     - if: $CI_COMMIT_TAG
