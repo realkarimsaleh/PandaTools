@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("PandaTools")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("3.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("3.0.0+0ebb13f4fe40fe8eed0797fa6c498bc00f3c2eda")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("3.0.0+1058579e82cc9b313530b2769838a98b2edd2cad")]
 [assembly: System.Reflection.AssemblyProductAttribute("PandaTools")]
 [assembly: System.Reflection.AssemblyTitleAttribute("PandaTools")]
 [assembly: System.Reflection.AssemblyVersionAttribute("3.0.0")]
