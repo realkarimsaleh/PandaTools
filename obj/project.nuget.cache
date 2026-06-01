@@ -1,18 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "/eAdPhsFuNg=",
+  "dgSpecHash": "SrfMtN1RC+0=",
   "success": true,
   "projectFilePath": "C:\\Code Repositories\\LBU-ITSRK-Development\\C#\\PandaTools\\PandaTools.csproj",
   "expectedPackageFiles": [],
-  "logs": [
-    {
-      "code": "Undefined",
-      "level": "Warning",
-      "message": "Problem reading the cache file C:\\Code Repositories\\LBU-ITSRK-Development\\C#\\PandaTools\\obj\\project.nuget.cache : '<' is an invalid start of a property name. Expected a '\"'. Path: $ | LineNumber: 2 | BytePositionInLine: 0.",
-      "projectPath": "C:\\Code Repositories\\LBU-ITSRK-Development\\C#\\PandaTools\\PandaTools.csproj",
-      "warningLevel": 1,
-      "filePath": "C:\\Code Repositories\\LBU-ITSRK-Development\\C#\\PandaTools\\PandaTools.csproj",
-      "targetGraphs": []
-    }
-  ]
+  "logs": []
 }
