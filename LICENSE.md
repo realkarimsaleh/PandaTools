@@ -20,7 +20,7 @@ Any use of this software by a business, organization, institution, or individual
 - Deployment across multiple machines within an organization
 - Bundling or redistributing the software as part of a commercial offering
 
-To request commercial permission or licensing terms, contact: [your email here]
+To request commercial permission or licensing terms, contact: karimmoustafasaleh@gmail.com
 
 ## Scope
 
